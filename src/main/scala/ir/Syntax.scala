@@ -8,6 +8,8 @@ object Syntax:
   enum Expr:
     case Local(lvl: Lvl, args: Option[List[Expr]] = None)
     case Global(name: Name, args: Option[List[Expr]] = None)
+    case IntLit(value: Int)
+    case BoolLit(value: Boolean)
   export Expr.*
 
   final case class Def(name: Name, params: Option[List[Name]], body: Expr):

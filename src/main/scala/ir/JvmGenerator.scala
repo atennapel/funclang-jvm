@@ -54,6 +54,8 @@ object JvmGenerator:
       e: Expr
   )(implicit ctx: Ctx, mctx: MethodCtx, mg: GeneratorAdapter): Unit =
     e match
+      case IntLit(v)  => mg.push(v)
+      case BoolLit(v) => mg.push(v)
       case Local(l, aso) =>
         mg.loadArg(l)
         aso match
