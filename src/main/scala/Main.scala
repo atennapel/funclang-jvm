@@ -7,9 +7,16 @@ import java.io.FileOutputStream
 object Main:
   @main def run(out: String) =
     val ds = List(
-      Def("id", Some(List("x")), Local(0)),
-      Def("f", Some(List("x")), Global("id", Some(List(Local(0))))),
-      Def("p42", Some(Nil), IntLit(42))
+      Def("id", Some(List(("x", TInt))), TInt, Local(0)),
+      Def(
+        "f",
+        Some(List(("x", TInt))),
+        TInt,
+        Global("id", Some(List(Local(0))))
+      ),
+      Def("p42", None, TInt, IntLit(42)),
+      Def("p42", None, TBool, BoolLit(true)),
+      Def("pid", None, TInt, Global("id", Some(List(IntLit(1)))))
     )
     val bs = generate("Test", ds)
     val bos = new BufferedOutputStream(new FileOutputStream(out))

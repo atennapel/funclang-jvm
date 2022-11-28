@@ -1,7 +1,8 @@
 Experiments in compiling a functional language to the JVM.
 
 TODO:
-- [ ] IR Types
+- [x] IR Types
+- [ ] Basic 1 parameter closures
 - [ ] Language with lambdas
   - [ ] Closure conversion
   - [ ] Lambda lifting

@@ -12,6 +12,17 @@ object Syntax:
     case BoolLit(value: Boolean)
   export Expr.*
 
-  final case class Def(name: Name, params: Option[List[Name]], body: Expr):
+  enum IRType:
+    case TInt
+    case TBool
+  export IRType.*
+
+  final case class Def(
+      name: Name,
+      params: Option[List[(Name, IRType)]],
+      retrn: IRType,
+      body: Expr
+  ):
     def arity = params.map(_.size).getOrElse(-1)
+
   type Defs = List[Def]
