@@ -40,6 +40,12 @@ object Main:
           "fn2",
           Some(NEL.of(Local(0)))
         )
+      ),
+      Def(
+        "not",
+        Some(NEL.of(TBool)),
+        TBool,
+        If(Local(0), BoolLit(false), BoolLit(true))
       )
     )
     val bs = generate("Test", ds)

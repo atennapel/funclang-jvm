@@ -24,6 +24,7 @@ object Syntax:
     case App(fn: Expr, args: NEL[Expr])
     case IntLit(value: Int)
     case BoolLit(value: Boolean)
+    case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
   export Expr.*
 
   enum IRType:

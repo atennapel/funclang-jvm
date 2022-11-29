@@ -6,10 +6,11 @@ TODO:
   - [x] Basic 1 parameter closures
   - [x] Remove 0-parameter methods for now
   - [x] Remove parameter names in IR
-  - [ ] Add if expression in IR
+  - [x] Add if expression in IR
   - [ ] Add some Int primitives in IR
   - [ ] Add let expression in IR
   - [ ] Tail-call optimization
+  - [ ] Unit IR type (?)
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
   - [ ] Optimize partial applications

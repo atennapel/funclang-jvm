@@ -133,6 +133,16 @@ object JvmGenerator:
           case (_, Some(as)) => // exact known call
             as.foreach(gen)
             mg.invokeStatic(ctx.classType, ctx.methods(x))
+      case If(c, a, b) =>
+        val lFalse = new Label
+        val lEnd = new Label
+        gen(c)
+        mg.visitJumpInsn(IFEQ, lFalse)
+        gen(a)
+        mg.visitJumpInsn(GOTO, lEnd)
+        mg.visitLabel(lFalse)
+        gen(b)
+        mg.visitLabel(lEnd)
 
   private def appClos(as: NEL[Expr])(implicit
       ctx: Ctx,
