@@ -7,6 +7,7 @@ import java.io.FileOutputStream
 object Main:
   @main def run(out: String) =
     val ds = List(
+      /*
       Def("id", Some(List(("x", TInt))), TInt, Local(0)),
       Def(
         "f",
@@ -29,6 +30,18 @@ object Main:
         Some(List(("x", TInt))),
         TInt,
         Global("test", Some(List(Local(0))))
+      ),
+       */
+      Def("fn2", Some(List(("x", TInt), ("y", TInt))), TInt, Local(0)),
+      Def("fn2c", Some(List()), TFun, Global("fn2")),
+      Def(
+        "fn2p",
+        Some(List(("x", TInt))),
+        TFun,
+        Global(
+          "fn2",
+          Some(List(Local(0)))
+        )
       )
     )
     val bs = generate("Test", ds)

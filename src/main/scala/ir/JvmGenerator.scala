@@ -46,20 +46,25 @@ object JvmGenerator:
     cw.toByteArray()
 
   private def genStaticBlock(
-      ds: Defs
+      ds0: Defs
   )(implicit ctx: Ctx, cw: ClassWriter): Unit =
-    val m = new Method("<clinit>", Type.VOID_TYPE, Nil.toArray)
-    implicit val mg: GeneratorAdapter =
-      new GeneratorAdapter(ACC_STATIC, m, null, null, cw)
-    implicit val mctx: MethodCtx = MethodCtx(-1)
-    ds.foreach(d => {
-      d match
-        case Def(x, None, rt, b) if constantValue(b).isEmpty =>
-          gen(b)
-          mg.putStatic(ctx.classType, x, descriptor(rt))
-        case _ =>
-    })
-    mg.endMethod()
+    val ds = ds0.filter {
+      case Def(x, None, rt, b) if constantValue(b).isEmpty => true
+      case _                                               => false
+    }
+    if ds.nonEmpty then
+      val m = new Method("<clinit>", Type.VOID_TYPE, Nil.toArray)
+      implicit val mg: GeneratorAdapter =
+        new GeneratorAdapter(ACC_STATIC, m, null, null, cw)
+      implicit val mctx: MethodCtx = MethodCtx(-1)
+      ds.foreach(d => {
+        d match
+          case Def(x, None, rt, b) =>
+            gen(b)
+            mg.putStatic(ctx.classType, x, descriptor(rt))
+          case _ =>
+      })
+      mg.endMethod()
 
   private def createMethod(d: Def): Option[Method] = d match
     case Def(x, Some(ps), rt, _) =>
@@ -78,11 +83,12 @@ object JvmGenerator:
     case _          => None
 
   private val OBJECT_TYPE = Type.getType(classOf[Object])
+  private val FUNCTION_TYPE = Type.getType("Ljava/util/function/Function;")
 
   private def descriptor(t: IRType): Type = t match
     case TInt  => Type.INT_TYPE
     case TBool => Type.BOOLEAN_TYPE
-    case TFun  => OBJECT_TYPE
+    case TFun  => FUNCTION_TYPE
 
   private def gen(d: Def)(implicit ctx: Ctx, cw: ClassWriter): Unit = d match
     case Def(x, None, rt, b) =>
@@ -148,32 +154,73 @@ object JvmGenerator:
       cw: ClassWriter,
       mg: GeneratorAdapter
   ): Unit =
-    val arity = ctx.arities(x)
-    if arity != 1 then ??? // TODO: arity > 1
-    // create method
-    val m = new Method(
-      s"$x$$lambda$$$uniq",
-      ctx.returns(x),
-      ctx.args(x).get.toArray
-    )
-    val mg2: GeneratorAdapter =
-      new GeneratorAdapter(
-        ACC_PUBLIC + ACC_STATIC + ACC_SYNTHETIC,
-        m,
-        null,
-        null,
-        cw
-      )
-    mg2.loadArg(0)
-    mg2.invokeStatic(ctx.classType, ctx.methods(x))
-    mg2.returnValue()
-    mg2.endMethod()
-    // dynamically instantiate lambda
+    val params = ctx.args(x).get
+    val arity = params.size
+    def go(i: Int): Method = i match
+      case 0 => throw new Exception("cannot curry 0 arity function")
+      case 1 =>
+        /*val m = new Method(
+          s"$x$$lambda$$$uniq",
+          ctx.returns(x),
+          params.toArray
+        )
+        val mg2: GeneratorAdapter =
+          new GeneratorAdapter(
+            ACC_PUBLIC + ACC_STATIC + ACC_SYNTHETIC,
+            m,
+            null,
+            null,
+            cw
+          )
+        (0 until arity).foreach(i => mg2.loadArg(i))
+        mg2.invokeStatic(ctx.classType, ctx.methods(x))
+        mg2.returnValue()
+        mg2.endMethod()
+        m*/
+        ctx.methods(x)
+      case i =>
+        val prevMethod = go(i - 1)
+        val prefix = params.dropRight(i - 1)
+        val m = new Method(
+          s"$x$$lambda$$$uniq",
+          FUNCTION_TYPE,
+          prefix.toArray
+        )
+        val mg2: GeneratorAdapter =
+          new GeneratorAdapter(
+            ACC_PUBLIC + ACC_STATIC + ACC_SYNTHETIC,
+            m,
+            null,
+            null,
+            cw
+          )
+        (0 until prefix.size).foreach(i => mg2.loadArg(i))
+        // dynamically instantiate lambda for previous generated method
+        val funDesc =
+          Type.getMethodDescriptor(descriptor(TFun), prefix.toArray*)
+        val funTypeASM = Type.getMethodType(descriptor(TFun), params(arity - i))
+        mg2.visitInvokeDynamicInsn(
+          "apply",
+          funDesc,
+          metaFactoryHandle,
+          funTypeASM,
+          new Handle(
+            H_INVOKESTATIC,
+            ctx.moduleName,
+            prevMethod.getName,
+            prevMethod.getDescriptor,
+            false
+          ),
+          funTypeASM
+        )
+        mg2.returnValue()
+        mg2.endMethod()
+        m
+    val m = go(arity)
     val funDesc = MethodType
-      .methodType(classOf[Function[Object, Object]])
+      .methodType(classOf[Function[?, ?]])
       .toMethodDescriptorString
-    val funType = MethodType.methodType(classOf[Object], classOf[Object])
-    val funTypeASM = Type.getMethodType(funType.toMethodDescriptorString)
+    val funTypeASM = Type.getMethodType(ctx.returns(x), params.head)
     mg.visitInvokeDynamicInsn(
       "apply",
       funDesc,
