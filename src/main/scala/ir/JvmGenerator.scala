@@ -113,6 +113,7 @@ object JvmGenerator:
       case IntLit(_)  => true
       case BoolLit(_) => true
       case Local(_)   => true
+      case UnitLit    => true
       case Global(y, as) if x == y =>
         as.map(_.size).getOrElse(0) == arity && !as.exists(a =>
           a.toList.exists(isRecursive(x, _))
@@ -138,6 +139,7 @@ object JvmGenerator:
     case IntLit(_)  => false
     case BoolLit(_) => false
     case Local(_)   => false
+    case UnitLit    => false
     case Global(y, as) =>
       x == y || as.exists(a => a.toList.exists(isRecursive(x, _)))
     case If(c, a, b) =>
@@ -155,6 +157,7 @@ object JvmGenerator:
   private val FUNCTION_TYPE = Type.getType("Ljava/util/function/Function;")
 
   private def descriptor(t: IRType): Type = t match
+    case TUnit => Type.BOOLEAN_TYPE
     case TInt  => Type.INT_TYPE
     case TBool => Type.BOOLEAN_TYPE
     case TFun  => FUNCTION_TYPE
@@ -191,6 +194,7 @@ object JvmGenerator:
     e match
       case IntLit(v)                  => mg.push(v)
       case BoolLit(v)                 => mg.push(v)
+      case UnitLit                    => mg.push(false)
       case Local(l) if l < mctx.arity => mg.loadArg(l)
       case Local(l)                   => mg.loadLocal(mctx.locals(l))
       case App(fn, as)                => gen(fn); appClos(as)

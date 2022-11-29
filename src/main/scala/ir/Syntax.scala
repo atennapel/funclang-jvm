@@ -32,11 +32,13 @@ object Syntax:
     case Let(ty: IRType, value: Expr, body: Expr)
     case IntLit(value: Int)
     case BoolLit(value: Boolean)
+    case UnitLit
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
     case BinopExpr(op: Binop, left: Expr, right: Expr)
 
     def globals: Set[Name] = this match
       case Local(_) => Set.empty
+      case UnitLit  => Set.empty
       case Global(x, args) =>
         Set(x) ++ args
           .map(l =>
@@ -56,8 +58,9 @@ object Syntax:
   export Expr.*
 
   enum IRType:
-    case TInt
+    case TUnit
     case TBool
+    case TInt
     case TFun
   export IRType.*
 
