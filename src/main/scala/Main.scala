@@ -46,6 +46,44 @@ object Main:
         Some(NEL.of(TBool)),
         TBool,
         If(Local(0), BoolLit(false), BoolLit(true))
+      ),
+      Def(
+        "lt",
+        Some(NEL.of(TInt, TInt)),
+        TBool,
+        BinopExpr(BLt, Local(0), Local(1))
+      ),
+      Def(
+        "fac",
+        Some(NEL.of(TInt)),
+        TInt,
+        If(
+          BinopExpr(BLt, Local(0), IntLit(2)),
+          IntLit(1),
+          BinopExpr(
+            BMul,
+            Local(0),
+            Global("fac", Some(NEL.of(BinopExpr(BSub, Local(0), IntLit(1)))))
+          )
+        )
+      ),
+      Def(
+        "fac2",
+        Some(NEL.of(TInt, TInt)),
+        TInt,
+        If(
+          BinopExpr(BLt, Local(0), IntLit(2)),
+          Local(1),
+          Global(
+            "fac2",
+            Some(
+              NEL.of(
+                BinopExpr(BSub, Local(0), IntLit(1)),
+                BinopExpr(BMul, Local(0), Local(1))
+              )
+            )
+          )
+        )
       )
     )
     val bs = generate("Test", ds)

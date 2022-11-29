@@ -18,6 +18,13 @@ object Syntax:
     def of[A](es: A*): NEL[A] = NEL(es.head, es.tail.toList)
     def of[A](l: List[A]): NEL[A] = NEL(l.head, l.tail)
 
+  enum Binop:
+    case BAdd
+    case BMul
+    case BSub
+    case BLt
+  export Binop.*
+
   enum Expr:
     case Local(lvl: Lvl)
     case Global(name: Name, args: Option[NEL[Expr]] = None)
@@ -25,6 +32,7 @@ object Syntax:
     case IntLit(value: Int)
     case BoolLit(value: Boolean)
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
+    case BinopExpr(op: Binop, left: Expr, right: Expr)
   export Expr.*
 
   enum IRType:

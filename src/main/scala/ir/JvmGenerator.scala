@@ -143,6 +143,22 @@ object JvmGenerator:
         mg.visitLabel(lFalse)
         gen(b)
         mg.visitLabel(lEnd)
+      case BinopExpr(op, a, b) =>
+        gen(a)
+        gen(b)
+        op match
+          case BAdd => mg.visitInsn(IADD)
+          case BMul => mg.visitInsn(IMUL)
+          case BSub => mg.visitInsn(ISUB)
+          case BLt =>
+            val lFalse = new Label
+            val lEnd = new Label
+            mg.ifICmp(IFGE, lFalse)
+            mg.push(true)
+            mg.visitJumpInsn(GOTO, lEnd)
+            mg.visitLabel(lFalse)
+            mg.push(false)
+            mg.visitLabel(lEnd)
 
   private def appClos(as: NEL[Expr])(implicit
       ctx: Ctx,
