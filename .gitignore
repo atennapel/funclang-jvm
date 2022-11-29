@@ -34,3 +34,4 @@ metals.sbt
 *.txt
 *.class
 *.java
+*.bc
