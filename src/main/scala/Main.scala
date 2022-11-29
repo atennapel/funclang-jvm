@@ -7,40 +7,38 @@ import java.io.FileOutputStream
 object Main:
   @main def run(out: String) =
     val ds = List(
-      /*
-      Def("id", Some(List(("x", TInt))), TInt, Local(0)),
+      Def("id", Some(NEL.of(TInt)), TInt, Local(0)),
       Def(
         "f",
-        Some(List(("x", TInt))),
+        Some(NEL.of(TInt)),
         TInt,
-        Global("id", Some(List(Local(0))))
+        Global("id", Some(NEL.of(Local(0))))
       ),
       Def("p42", None, TInt, IntLit(42)),
       Def("p42b", None, TBool, BoolLit(true)),
-      Def("pid", None, TInt, Global("id", Some(List(IntLit(1))))),
-      Def("test", Some(List()), TFun, Global("id")),
+      Def("pid", None, TInt, Global("id", Some(NEL.of(IntLit(1))))),
+      Def("test", Some(NEL.of(TBool)), TFun, Global("id")),
       Def(
         "app",
-        Some(List(("f", TFun))),
+        Some(NEL.of(TFun)),
         TInt,
-        App(Local(0), List(IntLit(0)))
+        App(Local(0), NEL.of(IntLit(0)))
       ),
       Def(
         "app2",
-        Some(List(("x", TInt))),
+        Some(NEL.of(TInt)),
         TInt,
-        Global("test", Some(List(Local(0))))
+        Global("test", Some(NEL.of(Local(0))))
       ),
-       */
-      Def("fn2", Some(List(("x", TInt), ("y", TInt))), TInt, Local(0)),
-      Def("fn2c", Some(List()), TFun, Global("fn2")),
+      Def("fn2", Some(NEL.of(TInt, TInt)), TInt, Local(0)),
+      Def("fn2c", Some(NEL.of(TBool)), TFun, Global("fn2")),
       Def(
         "fn2p",
-        Some(List(("x", TInt))),
+        Some(NEL.of(TInt)),
         TFun,
         Global(
           "fn2",
-          Some(List(Local(0)))
+          Some(NEL.of(Local(0)))
         )
       )
     )

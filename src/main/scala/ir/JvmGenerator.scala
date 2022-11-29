@@ -23,7 +23,7 @@ object JvmGenerator:
       moduleName: Name,
       arities: Map[Name, Arity],
       methods: Map[Name, Method],
-      args: Map[Name, Option[List[Type]]],
+      params: Map[Name, Option[NEL[Type]]],
       returns: Map[Name, Type]
   ):
     lazy val classType = Type.getType(s"L$moduleName;")
@@ -33,11 +33,10 @@ object JvmGenerator:
   def generate(moduleName: Name, ds: Defs): Array[Byte] =
     val arities = ds.map(d => d.name -> d.arity).toMap
     val methods = ds.flatMap(d => createMethod(d).map(m => d.name -> m)).toMap
-    val args =
-      ds.map(d => d.name -> d.params.map(as => as.map((_, t) => descriptor(t))))
-        .toMap
+    val params =
+      ds.map(d => d.name -> d.params.map(as => as.map(descriptor))).toMap
     val returns = ds.map(d => d.name -> descriptor(d.retrn)).toMap
-    implicit val ctx: Ctx = Ctx(moduleName, arities, methods, args, returns)
+    implicit val ctx: Ctx = Ctx(moduleName, arities, methods, params, returns)
     implicit val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
     cw.visit(V1_8, ACC_PUBLIC, moduleName, null, "java/lang/Object", null)
     ds.foreach(gen)
@@ -72,7 +71,7 @@ object JvmGenerator:
         new Method(
           x,
           descriptor(rt),
-          ps.map((_, t) => descriptor(t)).toArray
+          ps.map(descriptor).toList.toArray
         )
       )
     case _ => None
@@ -122,19 +121,20 @@ object JvmGenerator:
       case Global(x, aso) =>
         val arity = ctx.arities(x)
         (arity, aso) match
-          case (-1, None) => mg.getStatic(ctx.classType, x, ctx.returns(x))
-          case (-1, Some(as)) => // over-apply static member
+          case (0, None) => mg.getStatic(ctx.classType, x, ctx.returns(x))
+          case (0, Some(as)) => // over-apply static member
             gen(Global(x, None)); appClos(as)
           case (n, None) => curry(x)
           case (n, Some(as)) if as.size < n => // under-apply
             gen(Global(x, None)); appClos(as)
           case (n, Some(as)) if as.size > n => // over-apply
-            gen(Global(x, Some(as.take(n)))); appClos(as.drop(n))
+            gen(Global(x, Some(NEL.of(as.take(n)))))
+            appClos(NEL.of(as.drop(n)))
           case (_, Some(as)) => // exact known call
             as.foreach(gen)
             mg.invokeStatic(ctx.classType, ctx.methods(x))
 
-  private def appClos(as: List[Expr])(implicit
+  private def appClos(as: NEL[Expr])(implicit
       ctx: Ctx,
       mctx: MethodCtx,
       cw: ClassWriter,
@@ -154,7 +154,7 @@ object JvmGenerator:
       cw: ClassWriter,
       mg: GeneratorAdapter
   ): Unit =
-    val params = ctx.args(x).get
+    val params = ctx.params(x).get
     val arity = params.size
     def go(i: Int): Method = i match
       case 0 => throw new Exception("cannot curry 0 arity function")
