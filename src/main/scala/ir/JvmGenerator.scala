@@ -25,24 +25,35 @@ object JvmGenerator:
       moduleName: Name,
       arities: Map[Name, Arity],
       methods: Map[Name, Method],
+      references: Map[Name, Set[Name]],
+      tailRecursive: Set[Name],
       params: Map[Name, Option[NEL[Type]]],
       returns: Map[Name, Type]
   ):
     lazy val classType = Type.getType(s"L$moduleName;")
 
   final case class MethodCtx(
+      name: Name,
       arity: Arity,
+      tailRecursive: Boolean,
       lvl: Lvl,
       locals: Map[Lvl, Int]
   )
 
   def generate(moduleName: Name, ds: Defs): Array[Byte] =
     val arities = ds.map(d => d.name -> d.arity).toMap
-    val methods = ds.flatMap(d => createMethod(d).map(m => d.name -> m)).toMap
+    val references = ds.map { case Def(x, _, _, b) => x -> b.globals }.toMap
+    val methodsTR =
+      ds.flatMap(d =>
+        createMethod(d, references).map((m, b) => d.name -> (m, b))
+      ).toMap
+    val methods = methodsTR.map { case (k, (m, _)) => k -> m }
+    val tr = methodsTR.filter { case (k, (m, b)) => b }.keySet
     val params =
       ds.map(d => d.name -> d.params.map(as => as.map(descriptor))).toMap
     val returns = ds.map(d => d.name -> descriptor(d.retrn)).toMap
-    implicit val ctx: Ctx = Ctx(moduleName, arities, methods, params, returns)
+    implicit val ctx: Ctx =
+      Ctx(moduleName, arities, methods, references, tr, params, returns)
     implicit val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
     cw.visit(V1_8, ACC_PUBLIC, moduleName, null, "java/lang/Object", null)
     ds.foreach(gen)
@@ -61,26 +72,79 @@ object JvmGenerator:
       val m = new Method("<clinit>", Type.VOID_TYPE, Nil.toArray)
       implicit val mg: GeneratorAdapter =
         new GeneratorAdapter(ACC_STATIC, m, null, null, cw)
-      implicit val mctx: MethodCtx = MethodCtx(0, 0, Map.empty)
+      implicit val mctx: MethodCtx =
+        MethodCtx("<clinit>", 0, false, 0, Map.empty)
       ds.foreach(d => {
         d match
           case Def(x, None, rt, b) =>
+            implicit val lMethodStart = new Label
+            mg.visitLabel(lMethodStart)
             gen(b)
             mg.putStatic(ctx.classType, x, descriptor(rt))
           case _ =>
       })
       mg.endMethod()
 
-  private def createMethod(d: Def): Option[Method] = d match
-    case Def(x, Some(ps), rt, _) =>
-      Some(
-        new Method(
-          x,
-          descriptor(rt),
-          ps.map(descriptor).toList.toArray
+  private def createMethod(
+      d: Def,
+      references: Map[Name, Set[Name]]
+  ): Option[(Method, Boolean)] =
+    d match
+      case Def(x, Some(ps), rt, b) =>
+        Some(
+          (
+            new Method(
+              x,
+              descriptor(rt),
+              ps.map(descriptor).toList.toArray
+            ),
+            isTailRecursive(x, ps.size, references, b)
+          )
         )
-      )
-    case _ => None
+      case _ => None
+
+  private def isTailRecursive(
+      x: Name,
+      arity: Arity,
+      rs: Map[Name, Set[Name]],
+      e: Expr
+  ): Boolean =
+    e match
+      case IntLit(_)  => true
+      case BoolLit(_) => true
+      case Local(_)   => true
+      case Global(y, as) if x == y =>
+        as.map(_.size).getOrElse(0) == arity && !as.exists(a =>
+          a.toList.exists(isRecursive(x, _))
+        )
+      case Global(y, as) =>
+        !rs(y).contains(x) && !as.exists(a =>
+          a.toList.exists(isRecursive(x, _))
+        )
+      case If(c, a, b) =>
+        !isRecursive(x, c) && isTailRecursive(
+          x,
+          arity,
+          rs,
+          a
+        ) && isTailRecursive(x, arity, rs, b)
+      case BinopExpr(op, a, b) => !(isRecursive(x, a) || isRecursive(x, b))
+      case App(f, a) =>
+        !(isRecursive(x, f) || a.toList.exists(isRecursive(x, _)))
+      case Let(ty, v, b) =>
+        !isRecursive(x, v) && isTailRecursive(x, arity, rs, b)
+
+  private def isRecursive(x: Name, e: Expr): Boolean = e match
+    case IntLit(_)  => false
+    case BoolLit(_) => false
+    case Local(_)   => false
+    case Global(y, as) =>
+      x == y || as.exists(a => a.toList.exists(isRecursive(x, _)))
+    case If(c, a, b) =>
+      isRecursive(x, c) || isRecursive(x, a) || isRecursive(x, b)
+    case BinopExpr(op, a, b) => isRecursive(x, a) || isRecursive(x, b)
+    case App(f, as) => isRecursive(x, f) || as.toList.exists(isRecursive(x, _))
+    case Let(ty, v, b) => isRecursive(x, v) || isRecursive(x, b)
 
   private def constantValue(e: Expr): Option[Any] = e match
     case IntLit(v)  => Some(v)
@@ -106,10 +170,13 @@ object JvmGenerator:
       )
     case Def(x, Some(ps), _, b) =>
       val m = ctx.methods(x)
+      val tr = ctx.tailRecursive.contains(x)
       implicit val mctx: MethodCtx =
-        MethodCtx(ps.size, ps.size, Map.empty)
+        MethodCtx(x, ps.size, tr, ps.size, Map.empty)
       implicit val mg: GeneratorAdapter =
         new GeneratorAdapter(ACC_PUBLIC + ACC_STATIC, m, null, null, cw)
+      implicit val lMethodStart = new Label
+      mg.visitLabel(lMethodStart)
       gen(b)
       mg.returnValue()
       mg.endMethod()
@@ -118,7 +185,8 @@ object JvmGenerator:
       ctx: Ctx,
       mctx: MethodCtx,
       cw: ClassWriter,
-      mg: GeneratorAdapter
+      mg: GeneratorAdapter,
+      lMethodStart: Label
   ): Unit =
     e match
       case IntLit(v)                  => mg.push(v)
@@ -134,7 +202,7 @@ object JvmGenerator:
           lvl = mctx.lvl + 1,
           locals = mctx.locals + (mctx.lvl -> local)
         )
-        gen(b)(ctx, mctx2, cw, mg)
+        gen(b)(ctx, mctx2, cw, mg, lMethodStart)
       case Global(x, aso) =>
         val arity = ctx.arities(x)
         (arity, aso) match
@@ -147,6 +215,11 @@ object JvmGenerator:
           case (n, Some(as)) if as.size > n => // over-apply
             gen(Global(x, Some(NEL.of(as.take(n)))))
             appClos(NEL.of(as.drop(n)))
+          case (_, Some(as))
+              if mctx.tailRecursive && x == mctx.name => // exact known call tail-recursive
+            as.foreach(gen)
+            Range.inclusive(as.size - 1, 0, -1).foreach(i => mg.storeArg(i))
+            mg.visitJumpInsn(GOTO, lMethodStart)
           case (_, Some(as)) => // exact known call
             as.foreach(gen)
             mg.invokeStatic(ctx.classType, ctx.methods(x))
@@ -181,7 +254,8 @@ object JvmGenerator:
       ctx: Ctx,
       mctx: MethodCtx,
       cw: ClassWriter,
-      mg: GeneratorAdapter
+      mg: GeneratorAdapter,
+      lMethodStart: Label
   ): Unit =
     as.foreach(a => {
       gen(a)
@@ -209,7 +283,7 @@ object JvmGenerator:
         )
         val mg2: GeneratorAdapter =
           new GeneratorAdapter(
-            ACC_PUBLIC + ACC_STATIC + ACC_SYNTHETIC,
+            ACC_PRIVATE + ACC_STATIC + ACC_SYNTHETIC,
             m,
             null,
             null,
@@ -231,7 +305,7 @@ object JvmGenerator:
         )
         val mg2: GeneratorAdapter =
           new GeneratorAdapter(
-            ACC_PUBLIC + ACC_STATIC + ACC_SYNTHETIC,
+            ACC_PRIVATE + ACC_STATIC + ACC_SYNTHETIC,
             m,
             null,
             null,

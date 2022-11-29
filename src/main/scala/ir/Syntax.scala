@@ -34,6 +34,25 @@ object Syntax:
     case BoolLit(value: Boolean)
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
     case BinopExpr(op: Binop, left: Expr, right: Expr)
+
+    def globals: Set[Name] = this match
+      case Local(_) => Set.empty
+      case Global(x, args) =>
+        Set(x) ++ args
+          .map(l =>
+            l.toList.foldLeft(Set.empty[Name])((s, e) => s ++ e.globals)
+          )
+          .getOrElse(Set.empty[Name])
+      case App(fn, args) =>
+        fn.globals ++ args.toList.foldLeft(Set.empty[Name])((s, e) =>
+          s ++ e.globals
+        )
+      case Let(_, v, b)       => v.globals ++ b.globals
+      case IntLit(_)          => Set.empty
+      case BoolLit(_)         => Set.empty
+      case If(a, b, c)        => a.globals ++ b.globals ++ c.globals
+      case BinopExpr(_, a, b) => a.globals ++ b.globals
+
   export Expr.*
 
   enum IRType:

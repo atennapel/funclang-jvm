@@ -9,12 +9,13 @@ TODO:
   - [x] Add if expression in IR
   - [x] Add some Int primitives in IR
   - [x] Add let expression in IR
-  - [ ] Tail-call optimization
+  - [x] Basic Tail-call optimization
   - [ ] Unit IR type (?)
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
   - [ ] Optimize partial applications
   - [ ] Closures with arity
+  - [ ] Improve TCO
 - [ ] Language with lambdas
   - [ ] Closure conversion
   - [ ] Lambda lifting
