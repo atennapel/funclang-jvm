@@ -8,7 +8,7 @@ TODO:
   - [x] Remove parameter names in IR
   - [x] Add if expression in IR
   - [x] Add some Int primitives in IR
-  - [ ] Add let expression in IR
+  - [x] Add let expression in IR
   - [ ] Tail-call optimization
   - [ ] Unit IR type (?)
   - [ ] Optimize unit parameters and returns

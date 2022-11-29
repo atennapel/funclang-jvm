@@ -6,6 +6,8 @@ import org.objectweb.asm.*
 import org.objectweb.asm.Opcodes.*
 import org.objectweb.asm.commons.*
 
+import scala.collection.mutable
+
 import java.util.function.Function
 import java.lang.invoke.LambdaMetafactory
 import java.lang.reflect.Modifier
@@ -28,7 +30,11 @@ object JvmGenerator:
   ):
     lazy val classType = Type.getType(s"L$moduleName;")
 
-  final case class MethodCtx(arity: Arity)
+  final case class MethodCtx(
+      arity: Arity,
+      lvl: Lvl,
+      locals: Map[Lvl, Int]
+  )
 
   def generate(moduleName: Name, ds: Defs): Array[Byte] =
     val arities = ds.map(d => d.name -> d.arity).toMap
@@ -55,7 +61,7 @@ object JvmGenerator:
       val m = new Method("<clinit>", Type.VOID_TYPE, Nil.toArray)
       implicit val mg: GeneratorAdapter =
         new GeneratorAdapter(ACC_STATIC, m, null, null, cw)
-      implicit val mctx: MethodCtx = MethodCtx(-1)
+      implicit val mctx: MethodCtx = MethodCtx(0, 0, Map.empty)
       ds.foreach(d => {
         d match
           case Def(x, None, rt, b) =>
@@ -100,7 +106,8 @@ object JvmGenerator:
       )
     case Def(x, Some(ps), _, b) =>
       val m = ctx.methods(x)
-      implicit val mctx: MethodCtx = MethodCtx(ps.size)
+      implicit val mctx: MethodCtx =
+        MethodCtx(ps.size, ps.size, Map.empty)
       implicit val mg: GeneratorAdapter =
         new GeneratorAdapter(ACC_PUBLIC + ACC_STATIC, m, null, null, cw)
       gen(b)
@@ -114,10 +121,20 @@ object JvmGenerator:
       mg: GeneratorAdapter
   ): Unit =
     e match
-      case IntLit(v)   => mg.push(v)
-      case BoolLit(v)  => mg.push(v)
-      case Local(l)    => mg.loadArg(l) // TODO: local variables
-      case App(fn, as) => gen(fn); appClos(as)
+      case IntLit(v)                  => mg.push(v)
+      case BoolLit(v)                 => mg.push(v)
+      case Local(l) if l < mctx.arity => mg.loadArg(l)
+      case Local(l)                   => mg.loadLocal(mctx.locals(l))
+      case App(fn, as)                => gen(fn); appClos(as)
+      case Let(ty, v, b) =>
+        val local = mg.newLocal(descriptor(ty))
+        gen(v)
+        mg.storeLocal(local)
+        val mctx2 = mctx.copy(
+          lvl = mctx.lvl + 1,
+          locals = mctx.locals + (mctx.lvl -> local)
+        )
+        gen(b)(ctx, mctx2, cw, mg)
       case Global(x, aso) =>
         val arity = ctx.arities(x)
         (arity, aso) match

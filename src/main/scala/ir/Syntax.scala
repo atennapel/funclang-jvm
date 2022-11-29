@@ -29,6 +29,7 @@ object Syntax:
     case Local(lvl: Lvl)
     case Global(name: Name, args: Option[NEL[Expr]] = None)
     case App(fn: Expr, args: NEL[Expr])
+    case Let(ty: IRType, value: Expr, body: Expr)
     case IntLit(value: Int)
     case BoolLit(value: Boolean)
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)

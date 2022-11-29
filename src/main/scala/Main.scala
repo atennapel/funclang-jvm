@@ -84,6 +84,22 @@ object Main:
             )
           )
         )
+      ),
+      Def(
+        "fac3",
+        Some(NEL.of(TInt)),
+        TInt,
+        Let(TInt, Global("fac2", Some(NEL.of(Local(0), IntLit(1)))), Local(1))
+      ),
+      Def(
+        "lets",
+        Some(NEL.of(TBool)),
+        TInt,
+        If(
+          Local(0),
+          Let(TInt, IntLit(0), Local(1)),
+          Let(TInt, IntLit(1), Local(1))
+        )
       )
     )
     val bs = generate("Test", ds)
