@@ -11,6 +11,8 @@ TODO:
   - [x] Add let expression in IR
   - [x] Basic Tail-call optimization
 - [ ] Language with lambdas
+  - [x] Basic syntax
+  - [ ] Uncurrying and lambda smashing
   - [ ] Closure conversion
   - [ ] Lambda lifting
   - [ ] Compile to IR language
