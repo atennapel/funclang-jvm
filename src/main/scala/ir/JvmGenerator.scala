@@ -54,7 +54,9 @@ object JvmGenerator:
     val returns = ds.map(d => d.name -> descriptor(d.retrn)).toMap
     implicit val ctx: Ctx =
       Ctx(moduleName, arities, methods, references, tr, params, returns)
-    implicit val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+    implicit val cw = new ClassWriter(
+      ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES
+    )
     cw.visit(V1_8, ACC_PUBLIC, moduleName, null, "java/lang/Object", null)
 
     // empty constructor
