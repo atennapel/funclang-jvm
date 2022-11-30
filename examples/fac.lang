@@ -1,0 +1,9 @@
+test () = fac 4;
+
+facR (n acc : Int) : Int =
+  if n < 2 then
+    acc
+  else
+    facR (n - 1) (n * acc);
+
+fac (n : Int) : Int = facR n 1;
