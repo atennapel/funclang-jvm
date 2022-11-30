@@ -277,6 +277,17 @@ object JvmGenerator:
           case (_, Some(as)) => // exact known call
             as.foreach(gen)
             mg.invokeStatic(ctx.classType, ctx.methods(x))
+      case If(BinopExpr(BLt, x, y), a, b) =>
+        val lFalse = new Label
+        val lEnd = new Label
+        gen(x)
+        gen(y)
+        mg.ifICmp(IFGE, lFalse)
+        gen(a)
+        mg.visitJumpInsn(GOTO, lEnd)
+        mg.visitLabel(lFalse)
+        gen(b)
+        mg.visitLabel(lEnd)
       case If(c, a, b) =>
         val lFalse = new Label
         val lEnd = new Label
