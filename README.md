@@ -17,9 +17,10 @@ TODO:
   - [x] Lambda lifting
   - [x] Compile to IR language
 - [ ] Surface language
-  - [ ] Basic syntax
-  - [ ] Parser
-  - [ ] Type checking and elaboration
+  - [x] Basic syntax
+  - [x] Type checking and elaboration
+  - [x] Parser
+  - [ ] Special case main method for testing
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
