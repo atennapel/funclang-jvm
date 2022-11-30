@@ -10,12 +10,16 @@ TODO:
   - [x] Add some Int primitives in IR
   - [x] Add let expression in IR
   - [x] Basic Tail-call optimization
-- [ ] Language with lambdas
+- [x] Language with lambdas
   - [x] Basic syntax
-  - [ ] Uncurrying and lambda smashing
-  - [ ] Closure conversion
-  - [ ] Lambda lifting
-  - [ ] Compile to IR language
+  - [x] Uncurrying and lambda smashing
+  - [x] Closure conversion
+  - [x] Lambda lifting
+  - [x] Compile to IR language
+- [ ] Surface language
+  - [ ] Basic syntax
+  - [ ] Parser
+  - [ ] Type checking and elaboration
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global

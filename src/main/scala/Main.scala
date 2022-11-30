@@ -1,10 +1,50 @@
 import ir.Syntax.*
 import ir.JvmGenerator.generate
 
+import core.Syntax as C
+import core.ClosureConversion.*
+import core.LambdaLifting.*
+import core.Compiler.*
+
 import java.io.BufferedOutputStream
 import java.io.FileOutputStream
 
 object Main:
+  @main def run2(out: String) =
+    val ds = List(
+      C.Def(
+        "fac",
+        C.TFun(C.TInt, C.TFun(C.TInt, C.TInt)),
+        C.Lam(
+          "n",
+          C.TInt,
+          C.TFun(C.TInt, C.TInt),
+          C.Lam(
+            "acc",
+            C.TInt,
+            C.TInt,
+            C.If(
+              C.BinopExpr(C.BLt, C.Local(1), C.IntLit(2)),
+              C.Local(0),
+              C.App(
+                C.App(
+                  C.Global("fac"),
+                  C.BinopExpr(C.BSub, C.Local(1), C.IntLit(1))
+                ),
+                C.BinopExpr(C.BMul, C.Local(1), C.Local(0))
+              )
+            )
+          )
+        )
+      )
+    )
+    val ir = compile(ds)
+    println(ir)
+    val bs = generate("Test", ir)
+    val bos = new BufferedOutputStream(new FileOutputStream(out))
+    bos.write(bs)
+    bos.close()
+
   @main def run(out: String) =
     val ds = List(
       Def("id", Some(NEL.of(TInt)), TInt, Local(0)),
