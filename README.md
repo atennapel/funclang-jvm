@@ -1,5 +1,12 @@
 Experiments in compiling a functional language to the JVM.
 
+Test it out:
+```
+"test () = 42;" > test.txt
+sbt "run test.txt Test.class"
+java Test
+```
+
 TODO:
 - [x] IR
   - [x] IR Types
@@ -20,7 +27,8 @@ TODO:
   - [x] Basic syntax
   - [x] Type checking and elaboration
   - [x] Parser
-  - [ ] Special case main method for testing
+  - [x] Special case main method for testing
+  - [ ] Unification and holes
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global

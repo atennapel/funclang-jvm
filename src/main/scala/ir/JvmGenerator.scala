@@ -56,6 +56,56 @@ object JvmGenerator:
       Ctx(moduleName, arities, methods, references, tr, params, returns)
     implicit val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS)
     cw.visit(V1_8, ACC_PUBLIC, moduleName, null, "java/lang/Object", null)
+
+    // empty constructor
+    val con = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
+    con.visitVarInsn(ALOAD, 0)
+    con.visitMethodInsn(
+      INVOKESPECIAL,
+      "java/lang/Object",
+      "<init>",
+      "()V",
+      false
+    )
+    con.visitInsn(RETURN)
+    con.visitMaxs(1, 1)
+    con.visitEnd()
+    // main method
+    if ctx.methods.get("test").isDefined then
+      val m = new Method(
+        "main",
+        Type.VOID_TYPE,
+        List(Type.getType("[Ljava/lang/String;")).toArray
+      )
+      val main: GeneratorAdapter =
+        new GeneratorAdapter(ACC_PUBLIC + ACC_STATIC, m, null, null, cw)
+      main.visitFieldInsn(
+        GETSTATIC,
+        "java/lang/System",
+        "out",
+        "Ljava/io/PrintStream;"
+      )
+      main.push(false)
+      main.invokeStatic(ctx.classType, ctx.methods("test"))
+      main.invokeStatic(
+        Type.getType(classOf[Integer]),
+        Method.getMethod("Integer valueOf (int)")
+      )
+      main.invokeVirtual(
+        Type.getType(classOf[Object]),
+        Method.getMethod("String toString ()")
+      )
+      main.visitMethodInsn(
+        INVOKEVIRTUAL,
+        "java/io/PrintStream",
+        "println",
+        "(Ljava/lang/String;)V",
+        false
+      )
+      main.visitInsn(RETURN)
+      main.visitMaxs(3, 1)
+      main.visitEnd
+    // generate user definitions
     ds.foreach(gen)
     genStaticBlock(ds)
     cw.visitEnd()

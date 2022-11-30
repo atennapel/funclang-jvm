@@ -87,7 +87,8 @@ object Parser:
 
     private lazy val atom: Parsley[Expr] =
       attempt("(" <~> ")") #> UnitLit <|>
-        ("(" *> userOp.map(Var.apply) <* ")") <|>
+        attempt("(" *> userOp.map(Var.apply) <* ")") <|>
+        ("(" *> tm <* ")") <|>
         natural.map(IntLit.apply) <|>
         "True" #> BoolLit(true) <|>
         "False" #> BoolLit(true) <|>
