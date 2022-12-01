@@ -1,0 +1,10 @@
+foldNat : Int -> Int -> (Int -> Int) -> Int;
+foldNat n z s = if n < 1 then z else foldNat (n - 1) (s z) s;
+
+s : Int -> Int;
+s n = n + 1;
+
+add : Int -> Int -> Int;
+add a b = foldNat a b s;
+
+main () = add 1 2;

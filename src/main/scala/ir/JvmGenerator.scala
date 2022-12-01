@@ -187,6 +187,8 @@ object JvmGenerator:
         !(isRecursive(x, f) || a.toList.exists(isRecursive(x, _)))
       case Let(ty, v, b) =>
         !isRecursive(x, v) && isTailRecursive(x, arity, rs, b)
+      case Box(_, e)   => !isRecursive(x, e)
+      case Unbox(_, e) => !isRecursive(x, e)
 
   private def isRecursive(x: Name, e: Expr): Boolean = e match
     case IntLit(_)  => false
@@ -200,6 +202,8 @@ object JvmGenerator:
     case BinopExpr(op, a, b) => isRecursive(x, a) || isRecursive(x, b)
     case App(f, as) => isRecursive(x, f) || as.toList.exists(isRecursive(x, _))
     case Let(ty, v, b) => isRecursive(x, v) || isRecursive(x, b)
+    case Box(_, e)     => isRecursive(x, e)
+    case Unbox(_, e)   => isRecursive(x, e)
 
   private def constantValue(e: Expr): Option[Any] = e match
     case IntLit(v)  => Some(v)
@@ -317,6 +321,8 @@ object JvmGenerator:
             mg.visitLabel(lFalse)
             mg.push(false)
             mg.visitLabel(lEnd)
+      case Box(t, a)   => gen(a); mg.box(descriptor(t))
+      case Unbox(t, a) => gen(a); mg.unbox(descriptor(t))
 
   private def appClos(as: NEL[Expr])(implicit
       ctx: Ctx,
@@ -379,11 +385,17 @@ object JvmGenerator:
             null,
             cw
           )
-        (0 until prefix.size).foreach(i => mg2.loadArg(i))
+        (0 until prefix.size).foreach(i => {
+          mg2.loadArg(i); mg2.box(Type.INT_TYPE) // TODO: box based on type
+        })
         // dynamically instantiate lambda for previous generated method
         val funDesc =
-          Type.getMethodDescriptor(descriptor(TFun), prefix.toArray*)
-        val funTypeASM = Type.getMethodType(descriptor(TFun), params(arity - i))
+          Type.getMethodDescriptor(
+            descriptor(TFun),
+            prefix.map(_ => OBJECT_TYPE).toArray*
+          )
+        // val funTypeASM = Type.getMethodType(descriptor(TFun), params(arity - i))
+        val funTypeASM = Type.getMethodType(descriptor(TFun), OBJECT_TYPE)
         mg2.visitInvokeDynamicInsn(
           "apply",
           funDesc,
@@ -405,7 +417,8 @@ object JvmGenerator:
     val funDesc = MethodType
       .methodType(classOf[Function[?, ?]])
       .toMethodDescriptorString
-    val funTypeASM = Type.getMethodType(ctx.returns(x), params.head)
+    // val funTypeASM = Type.getMethodType(ctx.returns(x), params.head)
+    val funTypeASM = Type.getMethodType(OBJECT_TYPE, OBJECT_TYPE)
     mg.visitInvokeDynamicInsn(
       "apply",
       funDesc,

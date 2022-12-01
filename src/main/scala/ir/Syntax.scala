@@ -37,6 +37,8 @@ object Syntax:
     case UnitLit
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
     case BinopExpr(op: Binop, left: Expr, right: Expr)
+    case Box(ty: IRType, expr: Expr)
+    case Unbox(ty: IRType, expr: Expr)
 
     def globals: Set[Name] = this match
       case Local(_) => Set.empty
@@ -56,6 +58,8 @@ object Syntax:
       case BoolLit(_)         => Set.empty
       case If(a, b, c)        => a.globals ++ b.globals ++ c.globals
       case BinopExpr(_, a, b) => a.globals ++ b.globals
+      case Box(_, e)          => e.globals
+      case Unbox(_, e)        => e.globals
 
   export Expr.*
 
