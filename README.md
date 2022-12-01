@@ -7,7 +7,7 @@ java examples/Factorial
 ```
 
 TODO:
-- [x] IR
+- [ ] IR
   - [x] IR Types
   - [x] Basic 1 parameter closures
   - [x] Remove 0-parameter methods for now
@@ -16,6 +16,7 @@ TODO:
   - [x] Add some Int primitives in IR
   - [x] Add let expression in IR
   - [x] Basic Tail-call optimization
+  - [ ] Box before closure application and unbox after
 - [x] Language with lambdas
   - [x] Basic syntax
   - [x] Uncurrying and lambda smashing
@@ -29,13 +30,13 @@ TODO:
   - [x] Special case main method for testing
   - [x] Allow pre-declaration of definitions
   - [x] Unification and holes
-- [ ] Fix partial application (examples/PartialApp.lang)
 - [ ] Algebraic data types
 - [ ] Polymorphism
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
   - [ ] Optimize partial applications
+  - [ ] Try to eta-expand based on type to reduce closures
+  - [ ] Generate Function for all primitive combinations
   - [ ] Closures with arity
   - [ ] Improve TCO
-  - [ ] Try to eta-expand based on type to reduce closures

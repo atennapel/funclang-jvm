@@ -17,9 +17,9 @@ object ClosureConversion:
       val b = closureConvert(as.reverse ++ k, b0)
       val fvs = b.freeLocals.distinct.filterNot(_ < arity).map(_ - arity)
       val fas = fvs.map(k(_))
-      val b2 = fvs.zipWithIndex.foldRight(b) { case ((fv, i), b) =>
-        b.subst(fv + arity, Local(as.size + fas.size - i - 1))
-      }
+      val b2 = b.psubst(fvs.zipWithIndex.map { case (fv, i) =>
+        (fv + arity) -> Local(as.size + fas.size - i - 1)
+      }.toMap)
       b2.lams(fas ++ as, rt).app(fvs.map(Local.apply))
 
     case App(fn, arg) => App(closureConvert(k, fn), closureConvert(k, arg))

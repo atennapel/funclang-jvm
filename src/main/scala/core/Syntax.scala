@@ -55,23 +55,42 @@ object Syntax:
       case BinopExpr(o, a, b) => a.freeLocals ++ b.freeLocals
       case _                  => Nil
 
-    def shift(d: Int, c: Int): Expr = this match
+    def shift(d: Int, c: Ix): Expr = this match
       case Local(k) if k >= c => Local(k + d)
       case Lam(x, t, rt, b)   => Lam(x, t, rt, b.shift(d, c + 1))
       case Let(x, t, v, b)    => Let(x, t, v.shift(d, c), b.shift(d, c + 1))
       case App(f, a)          => App(f.shift(d, c), a.shift(d, c))
-      case If(cond, t, f) => If(cond.shift(d, c), t.shift(d, c), f.shift(d, c))
-      case BinopExpr(op, l, r) => BinopExpr(op, l.shift(d, c), l.shift(d, c))
+      case If(cond, t, f) =>
+        If(cond.shift(d, c), t.shift(d, c), f.shift(d, c))
+      case BinopExpr(op, l, r) => BinopExpr(op, l.shift(d, c), r.shift(d, c))
       case _                   => this
 
-    def subst(j: Int, s: Expr): Expr = this match
+    def subst(j: Ix, s: Expr): Expr = this match
       case Local(k) if k == j => s
       case Lam(x, t, rt, b)   => Lam(x, t, rt, b.subst(j + 1, s.shift(1, 0)))
       case Let(x, t, v, b) =>
         Let(x, t, v.subst(j, s), b.subst(j + 1, s.shift(1, 0)))
-      case App(f, a)      => App(f.subst(j, s), a.subst(j, s))
-      case If(cond, t, f) => If(cond.subst(j, s), t.subst(j, s), f.subst(j, s))
-      case BinopExpr(op, l, r) => BinopExpr(op, l.subst(j, s), l.subst(j, s))
+      case App(f, a) => App(f.subst(j, s), a.subst(j, s))
+      case If(cond, t, f) =>
+        If(cond.subst(j, s), t.subst(j, s), f.subst(j, s))
+      case BinopExpr(op, l, r) => BinopExpr(op, l.subst(j, s), r.subst(j, s))
+      case _                   => this
+
+    def psubst(sub: Map[Ix, Expr]): Expr = this match
+      case Local(k) => sub.get(k).getOrElse(this)
+      case Lam(x, t, rt, b) =>
+        Lam(x, t, rt, b.psubst(sub.map((j, s) => (j + 1) -> s.shift(1, 0))))
+      case Let(x, t, v, b) =>
+        Let(
+          x,
+          t,
+          v.psubst(sub),
+          b.psubst(sub.map((j, s) => (j + 1) -> s.shift(1, 0)))
+        )
+      case App(f, a) => App(f.psubst(sub), a.psubst(sub))
+      case If(cond, t, f) =>
+        If(cond.psubst(sub), t.psubst(sub), f.psubst(sub))
+      case BinopExpr(op, l, r) => BinopExpr(op, l.psubst(sub), r.psubst(sub))
       case _                   => this
 
     def beta(arg: Expr): Expr = this match
