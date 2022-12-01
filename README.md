@@ -2,8 +2,8 @@ Experiments in compiling a functional language to the JVM.
 
 Test it out:
 ```
-sbt "run examples/fac.lang Test.class"
-java Test
+sbt "run examples/Factorial"
+java examples/Factorial
 ```
 
 TODO:
@@ -27,9 +27,8 @@ TODO:
   - [x] Type checking and elaboration
   - [x] Parser
   - [x] Special case main method for testing
-  - [ ] Unification and holes
   - [ ] Allow pre-declaration of definitions
-  - [ ] Module declaration or use filename
+  - [ ] Unification and holes
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
