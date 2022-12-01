@@ -22,16 +22,20 @@ TODO:
   - [x] Closure conversion
   - [x] Lambda lifting
   - [x] Compile to IR language
-- [ ] Surface language
+- [x] Surface language
   - [x] Basic syntax
   - [x] Type checking and elaboration
   - [x] Parser
   - [x] Special case main method for testing
   - [x] Allow pre-declaration of definitions
-  - [ ] Unification and holes
+  - [x] Unification and holes
+- [ ] Fix partial application (examples/PartialApp.lang)
+- [ ] Algebraic data types
+- [ ] Polymorphism
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
   - [ ] Optimize partial applications
   - [ ] Closures with arity
   - [ ] Improve TCO
+  - [ ] Try to eta-expand based on type to reduce closures

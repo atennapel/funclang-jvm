@@ -1,12 +1,9 @@
-main : () -> Int;
 main _ = fac 4;
 
-facR : Int -> Int -> Int;
 facR n acc =
   if n < 2 then
     acc
   else
     facR (n - 1) (n * acc);
 
-fac : Int -> Int;
 fac n = facR n 1;

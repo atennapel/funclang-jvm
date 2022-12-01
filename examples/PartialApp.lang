@@ -1,0 +1,5 @@
+add a b = a + b;
+
+inc = add 1;
+
+main () = inc 42;

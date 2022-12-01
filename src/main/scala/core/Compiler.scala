@@ -19,6 +19,7 @@ object Compiler:
     case TInt       => IR.TInt
     case TUnit      => IR.TUnit
     case TFun(_, _) => IR.TFun
+    case TMeta(id)  => throw new Exception(s"cannot compile type meta ?$id")
 
   // precondition: d is closure-converted and lambda-lifted
   def compile(d: Def): IR.Def = d match

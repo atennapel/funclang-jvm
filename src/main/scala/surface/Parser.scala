@@ -93,6 +93,7 @@ object Parser:
         natural.map(IntLit.apply) <|>
         "True" #> BoolLit(true) <|>
         "False" #> BoolLit(true) <|>
+        "_" #> Hole <|>
         ident.map(Var.apply)
 
     lazy val tm: Parsley[Expr] = ifTm <|> let <|> lam <|> app

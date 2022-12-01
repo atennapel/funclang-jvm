@@ -4,12 +4,21 @@ object Syntax:
   type Name = String
   type Ix = Int
   type Lvl = Int
+  type TMetaId = Int
 
   enum Type:
     case TUnit
     case TBool
     case TInt
     case TFun(param: Type, retrn: Type)
+    case TMeta(id: TMetaId)
+
+    override def toString: String = this match
+      case TUnit      => "()"
+      case TBool      => "Bool"
+      case TInt       => "Int"
+      case TMeta(id)  => s"?$id"
+      case TFun(a, b) => s"($a -> $b)"
   export Type.*
 
   enum Binop:

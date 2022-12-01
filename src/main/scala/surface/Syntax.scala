@@ -28,6 +28,7 @@ object Syntax:
     case IntLit(value: Int)
     case BoolLit(value: Boolean)
     case UnitLit
+    case Hole
   export Expr.*
 
   enum Def:
