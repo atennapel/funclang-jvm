@@ -8,6 +8,7 @@ object Syntax:
     case TBool
     case TUnit
     case TFun(param: Type, retrn: Type)
+    case THole
   export Type.*
 
   enum Binop:
@@ -29,5 +30,9 @@ object Syntax:
     case UnitLit
   export Expr.*
 
-  final case class Def(name: Name, ty: Option[Type], value: Expr)
+  enum Def:
+    case DDef(name: Name, ty: Option[Type], value: Expr)
+    case DDecl(name: Name, ty: Type)
+  export Def.*
+
   type Defs = List[Def]

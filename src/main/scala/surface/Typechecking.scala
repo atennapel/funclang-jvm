@@ -26,6 +26,7 @@ object Typechecking:
     case TBool      => C.TBool
     case TInt       => C.TInt
     case TFun(a, b) => C.TFun(checkType(a), checkType(b))
+    case THole      => ??? // TODO: metas
 
   private def checkValue(v: Expr, t: Option[Type])(implicit
       ctx: Ctx
@@ -108,31 +109,47 @@ object Typechecking:
   def typecheck(e: Expr): (C.Expr, C.Type) =
     infer(e)(Nil)
 
-  def typecheck(d: Def): C.Def = d match
-    case Def("main", _, b) =>
+  def typecheck(d: Def): Option[C.Def] = d match
+    case DDecl(_, _) => None
+    case DDef("main", _, b) =>
       val cty = globals("main").get
       val ctm = check(b, cty)(Nil)
-      C.Def("main", cty, ctm)
-    case Def(x, t, b) =>
+      Some(C.Def("main", cty, ctm))
+    case DDef(x, t, b) =>
       implicit val ctx: Ctx = Nil
       t match
         case None =>
-          val (ctm, cty) = infer(b)
-          globals += (x -> Some(cty))
-          C.Def(x, cty, ctm)
+          globals(x) match
+            case None =>
+              val (ctm, cty) = infer(b)
+              globals += (x -> Some(cty))
+              Some(C.Def(x, cty, ctm))
+            case Some(cty) =>
+              val ctm = check(b, cty)
+              Some(C.Def(x, cty, ctm))
         case Some(ty) =>
           val cty = globals(x).get
           val ctm = check(b, cty)
-          C.Def(x, cty, ctm)
+          Some(C.Def(x, cty, ctm))
 
   def typecheck(d: Defs): C.Defs =
     globals.clear()
     d.foreach {
-      case Def("main", t, _) =>
+      case DDecl("main", ty) =>
+        val cty = C.TFun(C.TUnit, C.TInt)
+        unify(checkType(ty)(Nil), cty)
+        globals += ("main" -> Some(cty))
+      case DDef("main", t, _) =>
         val ty = C.TFun(C.TUnit, C.TInt)
         t.foreach(t => unify(checkType(t)(Nil), ty))
         globals += ("main" -> Some(ty))
-      case Def(x, t, _) =>
-        globals += (x -> t.map(t => checkType(t)(Nil)))
+      case DDecl(x, t) =>
+        globals += (x -> Some(checkType(t)(Nil)))
+      case DDef(x, t, _) =>
+        val ct = t.map(t => checkType(t)(Nil))
+        globals.get(x) match
+          case None           => globals += (x -> ct)
+          case Some(None)     => globals += (x -> ct)
+          case Some(Some(ty)) => ct.foreach(unify(_, ty))
     }
-    d.map(typecheck)
+    d.flatMap(typecheck)

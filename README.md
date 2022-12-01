@@ -27,7 +27,7 @@ TODO:
   - [x] Type checking and elaboration
   - [x] Parser
   - [x] Special case main method for testing
-  - [ ] Allow pre-declaration of definitions
+  - [x] Allow pre-declaration of definitions
   - [ ] Unification and holes
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns

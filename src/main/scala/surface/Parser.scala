@@ -30,7 +30,8 @@ object Parser:
         "True",
         "False",
         "Int",
-        "Bool"
+        "Bool",
+        "_"
       ),
       operators = Set("=", ":", ";", "\\", ".", "->"),
       identStart = Predicate(_.isLetter),
@@ -73,14 +74,14 @@ object Parser:
     import LangLexer.{ident as ident0, userOp as userOp0, natural, uri}
     import LangLexer.Implicits.given
 
-    private lazy val ident: Parsley[Name] = ident0
+    private lazy val ident: Parsley[Name] = "_" #> "_" <|> ident0
     private lazy val userOp: Parsley[Name] = userOp0
     private lazy val identOrOp: Parsley[Name] = ("(" *> userOp <* ")") <|> ident
 
     private lazy val tyAtom: Parsley[Type] =
       attempt(
         "(" <~> ")"
-      ) #> TUnit <|> ("(" *> ty <* ")") <|> "Int" #> TInt <|> "Bool" #> TBool
+      ) #> TUnit <|> ("(" *> ty <* ")") <|> "Int" #> TInt <|> "Bool" #> TBool <|> "_" #> THole
 
     lazy val ty: Parsley[Type] =
       precedence[Type](tyAtom)(Ops(InfixR)("->" #> ((l, r) => TFun(l, r))))
@@ -135,7 +136,7 @@ object Parser:
           Let(
             x,
             ty.map(typeFromParams(ps, _)),
-            lamFromDefParams(ps, v, ty.isEmpty),
+            lamFromDefParams(ps, v, ty.isEmpty, false),
             b
           )
       }
@@ -160,13 +161,14 @@ object Parser:
       ps.foldRight(rt)((x, b) =>
         x match
           case (xs, ty) =>
-            xs.foldRight(b)((_, t) => TFun(ty.get, t))
+            xs.foldRight(b)((_, t) => TFun(t, ty.getOrElse(THole)))
       )
 
     private def lamFromDefParams(
         ps: List[DefParam],
         b: Expr,
-        useTypes: Boolean
+        useTypes: Boolean,
+        ignoreTypeIfEmpty: Boolean
     ): Expr =
       ps.foldRight(b)((x, b) =>
         x match
@@ -174,7 +176,11 @@ object Parser:
             xs.foldRight(b)(
               Lam(
                 _,
-                if useTypes then Some(ty.get) else None,
+                if useTypes then
+                  (if ignoreTypeIfEmpty && ty.isEmpty then None
+                   else Some(ty.getOrElse(THole))
+                )
+                else None,
                 _
               )
             )
@@ -221,13 +227,16 @@ object Parser:
 
     lazy val defns: Parsley[Defs] = sepEndBy(defn, ";")
     lazy val defn: Parsley[Def] =
-      (identOrOp <~> many(defParam) <~> option(":" *> ty) <~> "=" *> tm).map {
-        case (((x, ds), ty), b) =>
-          Def(
+      attempt(identOrOp <~> many(defParam) <~> option(":" *> ty) <~> "=" *> tm)
+        .map { case (((x, ds), ty), b) =>
+          DDef(
             x,
             ty.map(typeFromParams(ds, _)),
-            lamFromDefParams(ds, b, ty.isEmpty)
+            lamFromDefParams(ds, b, ty.isEmpty, true)
           )
-      }
+        } <|>
+        (identOrOp <~> many(defParam) <~> ":" *> ty).map { case ((x, ds), ty) =>
+          DDecl(x, typeFromParams(ds, ty))
+        }
 
   lazy val parser: Parsley[Defs] = LangLexer.fully(TmParser.defns)
