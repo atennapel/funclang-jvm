@@ -135,6 +135,7 @@ object JvmGenerator:
             mg.putStatic(ctx.classType, x, descriptor(rt))
           case _ =>
       })
+      mg.visitInsn(RETURN)
       mg.endMethod()
 
   private def createMethod(
@@ -327,7 +328,7 @@ object JvmGenerator:
     as.foreach(a => {
       gen(a)
       mg.invokeInterface(
-        Type.getType(classOf[Function[Object, Object]]),
+        Type.getType(classOf[Function[?, ?]]),
         Method.getMethod("Object apply (Object)")
       )
     })
