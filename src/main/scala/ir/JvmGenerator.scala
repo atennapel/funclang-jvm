@@ -73,7 +73,7 @@ object JvmGenerator:
     con.visitMaxs(1, 1)
     con.visitEnd()
     // main method
-    if ctx.methods.get("test").isDefined then
+    if ctx.methods.get(mainName).isDefined then
       val m = new Method(
         "main",
         Type.VOID_TYPE,
@@ -88,7 +88,7 @@ object JvmGenerator:
         "Ljava/io/PrintStream;"
       )
       main.push(false)
-      main.invokeStatic(ctx.classType, ctx.methods("test"))
+      main.invokeStatic(ctx.classType, ctx.methods(mainName))
       main.invokeStatic(
         Type.getType(classOf[Integer]),
         Method.getMethod("Integer valueOf (int)")

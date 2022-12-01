@@ -1,4 +1,4 @@
-test () = fac 4;
+main () = fac 4;
 
 facR (n acc : Int) : Int =
   if n < 2 then

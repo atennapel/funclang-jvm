@@ -5,6 +5,8 @@ object Syntax:
   type Lvl = Int
   type Arity = Int // 0 means it's not a function
 
+  val mainName = "main$"
+
   final case class NEL[A](head: A, tail: List[A]):
     inline def size: Int = tail.size + 1
     def map[B](fn: A => B): NEL[B] = NEL(fn(head), tail.map(fn))

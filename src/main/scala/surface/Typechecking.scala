@@ -109,6 +109,10 @@ object Typechecking:
     infer(e)(Nil)
 
   def typecheck(d: Def): C.Def = d match
+    case Def("main", _, b) =>
+      val cty = globals("main").get
+      val ctm = check(b, cty)(Nil)
+      C.Def("main", cty, ctm)
     case Def(x, t, b) =>
       implicit val ctx: Ctx = Nil
       t match
@@ -123,7 +127,12 @@ object Typechecking:
 
   def typecheck(d: Defs): C.Defs =
     globals.clear()
-    d.foreach { case Def(x, t, _) =>
-      globals += (x -> t.map(t => checkType(t)(Nil)))
+    d.foreach {
+      case Def("main", t, _) =>
+        val ty = C.TFun(C.TUnit, C.TInt)
+        t.foreach(t => unify(checkType(t)(Nil), ty))
+        globals += ("main" -> Some(ty))
+      case Def(x, t, _) =>
+        globals += (x -> t.map(t => checkType(t)(Nil)))
     }
     d.map(typecheck)

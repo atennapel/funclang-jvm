@@ -6,6 +6,9 @@ import ClosureConversion.*
 import LambdaLifting.*
 
 object Compiler:
+  private def transformMain(x: Name): Name =
+    if x == "main" then IR.mainName else x
+
   def compile(ds: Defs): IR.Defs =
     val ds1 = closureConvert(ds)
     val ds2 = lambdaLift(ds1)
@@ -25,7 +28,7 @@ object Compiler:
       val ps2 = if as.isEmpty then None else Some(IR.NEL.of(ps1))
       val rt1 = if as.isEmpty then compile(ty) else compile(rt)
       val b1 = compile(as.size, b)
-      IR.Def(x, ps2, rt1, b1)
+      IR.Def(transformMain(x), ps2, rt1, b1)
 
   // precondition: e is closure-converted and lambda-lifted
   def compile(k: Lvl, e: Expr): IR.Expr = e match
@@ -34,7 +37,7 @@ object Compiler:
       val (f, as) = e.flattenApp
       val cas = as.map(compile(k, _))
       f match
-        case Global(x) => IR.Global(x, Some(IR.NEL.of(cas)))
+        case Global(x) => IR.Global(transformMain(x), Some(IR.NEL.of(cas)))
         case f         => IR.App(compile(k, f), IR.NEL.of(cas))
     case Let(x, t, v, b) => IR.Let(compile(t), compile(k, v), compile(k + 1, b))
     case If(c, a, b)     => IR.If(compile(k, c), compile(k, a), compile(k, b))
