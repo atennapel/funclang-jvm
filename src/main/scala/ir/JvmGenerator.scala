@@ -339,6 +339,11 @@ object JvmGenerator:
       )
     })
 
+  private def boxType(t: Type): Type =
+    if t == Type.INT_TYPE then Type.getType(classOf[Integer])
+    else if t == Type.BOOLEAN_TYPE then Type.getType(classOf[Boolean])
+    else t
+
   private def curry(x: Name)(implicit
       ctx: Ctx,
       mctx: MethodCtx,
@@ -350,10 +355,10 @@ object JvmGenerator:
     def go(i: Int): Method = i match
       case 0 => throw new Exception("cannot curry 0 arity function")
       case 1 =>
-        /*val m = new Method(
+        val m = new Method(
           s"$x$$lambda$$$uniq",
-          ctx.returns(x),
-          params.toArray
+          boxType(ctx.returns(x)),
+          params.map(boxType).toList.toArray
         )
         val mg2: GeneratorAdapter =
           new GeneratorAdapter(
@@ -363,19 +368,22 @@ object JvmGenerator:
             null,
             cw
           )
-        (0 until arity).foreach(i => mg2.loadArg(i))
+        (0 until arity).foreach(i => {
+          mg2.loadArg(i); mg2.unbox(params.toList(i))
+        })
         mg2.invokeStatic(ctx.classType, ctx.methods(x))
+        mg2.box(ctx.returns(x))
         mg2.returnValue()
         mg2.endMethod()
-        m*/
-        ctx.methods(x)
+        m
+      // ctx.methods(x)
       case i =>
         val prevMethod = go(i - 1)
         val prefix = params.dropRight(i - 1)
         val m = new Method(
           s"$x$$lambda$$$uniq",
           FUNCTION_TYPE,
-          prefix.toArray
+          prefix.map(boxType).toArray
         )
         val mg2: GeneratorAdapter =
           new GeneratorAdapter(
@@ -385,17 +393,16 @@ object JvmGenerator:
             null,
             cw
           )
-        (0 until prefix.size).foreach(i => {
-          mg2.loadArg(i); mg2.box(Type.INT_TYPE) // TODO: box based on type
-        })
+        (0 until prefix.size).foreach(i => mg2.loadArg(i))
         // dynamically instantiate lambda for previous generated method
         val funDesc =
           Type.getMethodDescriptor(
             descriptor(TFun),
-            prefix.map(_ => OBJECT_TYPE).toArray*
+            prefix.map(boxType).toArray*
           )
-        // val funTypeASM = Type.getMethodType(descriptor(TFun), params(arity - i))
-        val funTypeASM = Type.getMethodType(descriptor(TFun), OBJECT_TYPE)
+        val funTypeASM = Type.getMethodType(OBJECT_TYPE, OBJECT_TYPE)
+        val funTypeASM2 =
+          Type.getMethodType(descriptor(TFun), boxType(params(arity - i)))
         mg2.visitInvokeDynamicInsn(
           "apply",
           funDesc,
@@ -408,7 +415,7 @@ object JvmGenerator:
             prevMethod.getDescriptor,
             false
           ),
-          funTypeASM
+          funTypeASM2
         )
         mg2.returnValue()
         mg2.endMethod()
@@ -419,6 +426,10 @@ object JvmGenerator:
       .toMethodDescriptorString
     // val funTypeASM = Type.getMethodType(ctx.returns(x), params.head)
     val funTypeASM = Type.getMethodType(OBJECT_TYPE, OBJECT_TYPE)
+    val funTypeASM2 = Type.getMethodType(
+      Type.getType(classOf[Integer]),
+      Type.getType(classOf[Integer])
+    )
     mg.visitInvokeDynamicInsn(
       "apply",
       funDesc,
@@ -431,7 +442,7 @@ object JvmGenerator:
         m.getDescriptor,
         false
       ),
-      funTypeASM
+      funTypeASM2
     )
 
   private lazy val metaFactoryHandle: Handle =

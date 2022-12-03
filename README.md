@@ -16,8 +16,9 @@ TODO:
   - [x] Add some Int primitives in IR
   - [x] Add let expression in IR
   - [x] Basic Tail-call optimization
-  - [ ] Fix closures
-  - [ ] Box before closure application and unbox after
+  - [x] Fix closures
+  - [x] Box before closure application and unbox after
+  - [ ] Use more efficient Boxing (intValue/valueOf)
 - [x] Language with lambdas
   - [x] Basic syntax
   - [x] Uncurrying and lambda smashing
