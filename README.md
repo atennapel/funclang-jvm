@@ -7,7 +7,7 @@ java examples/Factorial
 ```
 
 TODO:
-- [ ] IR
+- [x] IR
   - [x] IR Types
   - [x] Basic 1 parameter closures
   - [x] Remove 0-parameter methods for now
@@ -18,7 +18,7 @@ TODO:
   - [x] Basic Tail-call optimization
   - [x] Fix closures
   - [x] Box before closure application and unbox after
-  - [ ] Use more efficient Boxing (intValue/valueOf)
+  - [x] Use more efficient Boxing (intValue)
 - [x] Language with lambdas
   - [x] Basic syntax
   - [x] Uncurrying and lambda smashing

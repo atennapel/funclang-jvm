@@ -321,8 +321,23 @@ object JvmGenerator:
             mg.visitLabel(lFalse)
             mg.push(false)
             mg.visitLabel(lEnd)
-      case Box(t, a)   => gen(a); mg.box(descriptor(t))
+      case Box(t, a)   => gen(a); box(descriptor(t))
       case Unbox(t, a) => gen(a); mg.unbox(descriptor(t))
+
+  // ASM generates a constructor application, so we override it here
+  // to generate simpler bytecode
+  private def box(t: Type)(implicit mg: GeneratorAdapter) =
+    if t == Type.INT_TYPE then
+      mg.invokeStatic(
+        Type.getType(classOf[Integer]),
+        Method.getMethod("Integer valueOf (int)")
+      )
+    else if t == Type.BOOLEAN_TYPE then
+      mg.invokeStatic(
+        Type.getType(classOf[Boolean]),
+        Method.getMethod("Boolean valueOf (boolean)")
+      )
+    else mg.box(t)
 
   private def appClos(as: NEL[Expr])(implicit
       ctx: Ctx,
@@ -372,7 +387,7 @@ object JvmGenerator:
           mg2.loadArg(i); mg2.unbox(params.toList(i))
         })
         mg2.invokeStatic(ctx.classType, ctx.methods(x))
-        mg2.box(ctx.returns(x))
+        box(ctx.returns(x))(mg2)
         mg2.returnValue()
         mg2.endMethod()
         m
