@@ -1,0 +1,6 @@
+compose : (b -> c) -> (a -> b) -> a -> c;
+compose f g x = f (g x);
+
+m2p1 = compose (\x. x + 1) (\y. y * 2);
+
+main () = m2p1 2;

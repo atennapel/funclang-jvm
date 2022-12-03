@@ -1,4 +1,4 @@
-foldNat : Int -> Int -> (Int -> Int) -> Int;
+foldNat : Int -> t -> (t -> t) -> t;
 foldNat n z s = if n < 1 then z else foldNat (n - 1) (s z) s;
 
 s : Int -> Int;

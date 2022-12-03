@@ -218,6 +218,7 @@ object JvmGenerator:
     case TInt  => Type.INT_TYPE
     case TBool => Type.BOOLEAN_TYPE
     case TFun  => FUNCTION_TYPE
+    case TPoly => OBJECT_TYPE
 
   private def gen(d: Def)(implicit ctx: Ctx, cw: ClassWriter): Unit = d match
     case Def(x, None, rt, b) =>

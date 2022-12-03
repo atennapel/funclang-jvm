@@ -11,6 +11,7 @@ object Syntax:
     case TBool
     case TInt
     case TFun(param: Type, retrn: Type)
+    case TVar(name: Name)
     case TMeta(id: TMetaId)
 
     override def toString: String = this match
@@ -18,6 +19,7 @@ object Syntax:
       case TBool      => "Bool"
       case TInt       => "Int"
       case TMeta(id)  => s"?$id"
+      case TVar(x)    => s"$x"
       case TFun(a, b) => s"($a -> $b)"
   export Type.*
 

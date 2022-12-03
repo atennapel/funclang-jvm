@@ -7,6 +7,7 @@ object Syntax:
     case TInt
     case TBool
     case TUnit
+    case TVar(name: Name)
     case TFun(param: Type, retrn: Type)
     case THole
   export Type.*

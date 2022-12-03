@@ -17,6 +17,7 @@ object Compiler:
     val ds2 = lambdaLift(ds1)
     implicit val globals: Globals =
       ds2.map(d => d.name -> (getArity(d.value), d.ty)).toMap
+    // println(globals)
     ds2.map(compile)
 
   private def getArity(v: Expr): Arity =
@@ -28,6 +29,7 @@ object Compiler:
     case TInt       => IR.TInt
     case TUnit      => IR.TUnit
     case TFun(_, _) => IR.TFun
+    case TVar(_)    => IR.TPoly
     case TMeta(id)  => throw new Exception(s"cannot compile type meta ?$id")
 
   // precondition: d is closure-converted and lambda-lifted
@@ -37,8 +39,8 @@ object Compiler:
       val ps1 = as.map((x, t) => compile(t))
       val ps2 = if as.isEmpty then None else Some(IR.NEL.of(ps1))
       val rt1 = if as.isEmpty then compile(ty) else compile(rt)
-      val (b1, _) = compile(as.map((_, t) => t).reverse, b)
-      IR.Def(transformMain(x), ps2, rt1, b1)
+      val (b1, et) = compile(as.map((_, t) => t).reverse, b)
+      IR.Def(transformMain(x), ps2, rt1, wrapExpr(b1, et, rt))
 
   // precondition: e is closure-converted and lambda-lifted
   def compile(k: List[Type], e: Expr)(implicit
@@ -52,10 +54,11 @@ object Compiler:
         case Global(x) =>
           val (arity, ty) = globals(x)
           val y = transformMain(x)
+          val tcas = typedArgs(ty, cas)
           (arity, cas.size) match
             case (a, k) if k == a =>
               (
-                IR.Global(y, Some(IR.NEL.of(cas.map(_._1)))),
+                IR.Global(y, Some(IR.NEL.of(tcas.map(wrapExpr)))),
                 appN(ty, cas.size)
               )
             case (a, k) if k < a =>
@@ -65,7 +68,7 @@ object Compiler:
               )
             case (a, k) =>
               val rt = appN(ty, cas.size)
-              val as1 = cas.take(a).map(_._1)
+              val as1 = tcas.take(a).map(wrapExpr)
               val as2 = cas.drop(a).map((e, t) => box(t, e))
               (
                 unbox(rt, IR.Global(y, Some(IR.NEL.of(as1 ++ as2)))),
@@ -96,20 +99,33 @@ object Compiler:
     case UnitLit         => (IR.UnitLit, TUnit)
     case Lam(_, _, _, _) => throw new Exception("cannot compile a lambda")
 
+  private def wrapExpr(e: IR.Expr, t1: Type, t2: Type): IR.Expr = (t1, t2) match
+    case (TUnit, TVar(_)) => box(t1, e)
+    case (TBool, TVar(_)) => box(t1, e)
+    case (TInt, TVar(_))  => box(t1, e)
+    case (TVar(_), TUnit) => unbox(t2, e)
+    case (TVar(_), TBool) => unbox(t2, e)
+    case (TVar(_), TInt)  => unbox(t2, e)
+    case _                => e
+
   private def box(t: Type, e: IR.Expr): IR.Expr = t match
     case TFun(_, _) => e
+    case TVar(_)    => e
     case t =>
       val ct = compile(t)
       e match
         case IR.Unbox(ct2, e) if ct == ct2 => e
+        case IR.Box(_, _)                  => e
         case e                             => IR.Box(ct, e)
 
   private def unbox(t: Type, e: IR.Expr): IR.Expr = t match
     case TFun(_, _) => e
+    case TVar(_)    => e
     case t =>
       val ct = compile(t)
       e match
         case IR.Box(ct2, e) if ct == ct2 => e
+        case IR.Unbox(_, _)              => e
         case e                           => IR.Unbox(ct, e)
 
   def compile(o: Binop): (IR.Binop, Type) = o match
@@ -122,3 +138,12 @@ object Compiler:
     case (t, 0)          => t
     case (TFun(_, t), n) => appN(t, n - 1)
     case _ => throw new Exception("impossible: appN failed, typechecking bug")
+
+  private def typedArgs(
+      t: Type,
+      as: List[(IR.Expr, Type)]
+  ): List[(IR.Expr, Type, Type)] = (t, as) match
+    case (TFun(t1, t2), (e, et) :: as) => (e, et, t1) :: typedArgs(t2, as)
+    case (_, Nil)                      => Nil
+    case _ =>
+      throw new Exception("impossible: typedArgs failed, typechecking bug")

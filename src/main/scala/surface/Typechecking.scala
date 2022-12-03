@@ -57,10 +57,38 @@ object Typechecking:
     case (C.TUnit, C.TUnit)               => ()
     case (C.TBool, C.TBool)               => ()
     case (C.TInt, C.TInt)                 => ()
+    case (C.TVar(x), C.TVar(y)) if x == y => ()
     case (C.TFun(t1, t2), C.TFun(t3, t4)) => unify(t1, t3); unify(t2, t4)
     case (C.TMeta(id), t)                 => solve(id, t)
     case (t, C.TMeta(id))                 => solve(id, t)
     case (a, b) => throw new Exception(s"cannot unify $a ~ $b")
+
+  // polymorphism
+  private def inst(
+      t: C.Type,
+      map: mutable.Map[Name, C.Type] = mutable.Map.empty
+  ): C.Type = t match
+    case C.TVar(x) =>
+      map.get(x) match
+        case Some(t) => t
+        case None =>
+          val m = freshTMeta()
+          map += x -> m
+          m
+    case C.TFun(t1, t2) => C.TFun(inst(t1, map), inst(t2, map))
+    case t              => t
+
+  private def freeTMetas(t: C.Type, tms: mutable.ArrayBuffer[C.TMetaId]): Unit =
+    force(t) match
+      case C.TMeta(id)    => if !tms.contains(id) then tms += id
+      case C.TFun(t1, t2) => freeTMetas(t1, tms); freeTMetas(t2, tms)
+      case _              => ()
+
+  private def gen(t: C.Type): C.Type =
+    val tms = mutable.ArrayBuffer.empty[C.TMetaId]
+    freeTMetas(t, tms)
+    tms.zipWithIndex.foreach((id, i) => solve(id, C.TVar(s"t$i")))
+    zonk(t)
 
   // contexts
   private val globals: mutable.Map[Name, C.Type] = mutable.Map.empty
@@ -79,6 +107,7 @@ object Typechecking:
     case TUnit      => C.TUnit
     case TBool      => C.TBool
     case TInt       => C.TInt
+    case TVar(x)    => C.TVar(x)
     case TFun(a, b) => C.TFun(checkType(a), checkType(b))
     case THole      => freshTMeta()
 
@@ -128,7 +157,7 @@ object Typechecking:
           globals.get(x) match
             case None =>
               throw new Exception(s"undefined local or global variable $x")
-            case Some(t) => (C.Global(x), t)
+            case Some(t) => (C.Global(x), inst(t))
     case If(c, a, b) =>
       val cc = check(c, C.TBool)
       val (ca, ct) = infer(a)
@@ -167,17 +196,20 @@ object Typechecking:
   def typecheck(e: Expr): (C.Expr, C.Type) =
     infer(e)(Nil)
 
-  def typecheck(d: Def): Option[C.Def] = d match
-    case DDecl(_, _) => None
-    case DDef("main", _, b) =>
-      val cty = globals("main")
-      val ctm = check(b, cty)(Nil)
-      Some(C.Def("main", cty, ctm))
-    case DDef(x, _, b) =>
-      implicit val ctx: Ctx = Nil
-      val cty = globals(x)
-      val ctm = check(b, cty)
-      Some(C.Def(x, cty, ctm))
+  def typecheck(d: Def): Option[C.Def] =
+    d match
+      case DDecl(_, _) => None
+      case DDef("main", _, b) =>
+        val cty = globals("main")
+        val ctm = check(b, cty)(Nil)
+        Some(C.Def("main", cty, ctm))
+      case DDef(x, _, b) =>
+        implicit val ctx: Ctx = Nil
+        val cty = globals(x)
+        val ctm = check(b, cty)
+        val cty1 = gen(cty)
+        globals += x -> cty1
+        Some(C.Def(x, cty1, ctm))
 
   def typecheck(d: Defs): C.Defs =
     globals.clear()

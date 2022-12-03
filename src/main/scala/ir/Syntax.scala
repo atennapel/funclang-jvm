@@ -68,6 +68,7 @@ object Syntax:
     case TBool
     case TInt
     case TFun
+    case TPoly
   export IRType.*
 
   final case class Def(

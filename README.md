@@ -32,8 +32,8 @@ TODO:
   - [x] Special case main method for testing
   - [x] Allow pre-declaration of definitions
   - [x] Unification and holes
+- [x] Polymorphism
 - [ ] Algebraic data types
-- [ ] Polymorphism
 - [ ] IR code generation improvements
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global

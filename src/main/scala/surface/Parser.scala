@@ -81,7 +81,8 @@ object Parser:
     private lazy val tyAtom: Parsley[Type] =
       attempt(
         "(" <~> ")"
-      ) #> TUnit <|> ("(" *> ty <* ")") <|> "Int" #> TInt <|> "Bool" #> TBool <|> "_" #> THole
+      ) #> TUnit <|> ("(" *> ty <* ")") <|> "Int" #> TInt <|> "Bool" #> TBool <|>
+        "_" #> THole <|> ident.map(TVar.apply)
 
     lazy val ty: Parsley[Type] =
       precedence[Type](tyAtom)(Ops(InfixR)("->" #> ((l, r) => TFun(l, r))))

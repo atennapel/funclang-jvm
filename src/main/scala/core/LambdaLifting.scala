@@ -24,7 +24,7 @@ object LambdaLifting:
       val arity = as.size
       val (ds, b) = lambdaLift(b0)
       val dx = s"$topName$$lambdalift$$$uniq"
-      (Def(dx, rt, b.lams(as, rt)) :: ds, Global(dx))
+      (Def(dx, as.foldRight(rt){ case ((_, pt), rt) => TFun(pt, rt) }, b.lams(as, rt)) :: ds, Global(dx))
 
     case App(fn, arg) =>
       val (ds1, fn1) = lambdaLift(fn)
