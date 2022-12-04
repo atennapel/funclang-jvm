@@ -12,11 +12,12 @@ object LambdaLifting:
   def lambdaLift(ds: Defs): Defs = ds.flatMap(lambdaLift)
 
   def lambdaLift(d: Def): Defs = d match
-    case Def(x, t, v) =>
+    case DDef(x, t, v) =>
       // note: do not lift top-level lambdas
       val (as, rt, b) = v.flattenLam
       val (ds, b1) = lambdaLift(b)(x)
-      ds ++ List(Def(x, t, b1.lams(as, rt)))
+      ds ++ List(DDef(x, t, b1.lams(as, rt)))
+    case DData(x, cs) => ???
 
   def lambdaLift(e: Expr)(implicit topName: Name): (Defs, Expr) = e match
     case Lam(_, _, _, _) =>
@@ -24,7 +25,14 @@ object LambdaLifting:
       val arity = as.size
       val (ds, b) = lambdaLift(b0)
       val dx = s"$topName$$lambdalift$$$uniq"
-      (Def(dx, as.foldRight(rt){ case ((_, pt), rt) => TFun(pt, rt) }, b.lams(as, rt)) :: ds, Global(dx))
+      (
+        DDef(
+          dx,
+          as.foldRight(rt) { case ((_, pt), rt) => TFun(pt, rt) },
+          b.lams(as, rt)
+        ) :: ds,
+        Global(dx)
+      )
 
     case App(fn, arg) =>
       val (ds1, fn1) = lambdaLift(fn)

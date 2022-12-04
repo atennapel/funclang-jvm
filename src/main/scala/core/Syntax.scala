@@ -12,6 +12,7 @@ object Syntax:
     case TInt
     case TFun(param: Type, retrn: Type)
     case TVar(name: Name)
+    case TCon(name: Name)
     case TMeta(id: TMetaId)
 
     override def toString: String = this match
@@ -20,6 +21,7 @@ object Syntax:
       case TInt       => "Int"
       case TMeta(id)  => s"?$id"
       case TVar(x)    => s"$x"
+      case TCon(x)    => s"$x"
       case TFun(a, b) => s"($a -> $b)"
   export Type.*
 
@@ -113,5 +115,9 @@ object Syntax:
       case t => (t, Nil)
   export Expr.*
 
-  final case class Def(name: Name, ty: Type, value: Expr)
+  enum Def:
+    case DDef(name: Name, ty: Type, value: Expr)
+    case DData(name: Name, cons: List[(Name, List[Type])])
+  export Def.*
+
   type Defs = List[Def]

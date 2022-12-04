@@ -16,7 +16,9 @@ object Compiler:
     val ds1 = closureConvert(ds)
     val ds2 = lambdaLift(ds1)
     implicit val globals: Globals =
-      ds2.map(d => d.name -> (getArity(d.value), d.ty)).toMap
+      ds2.flatMap {
+        case DDef(x, t, v) => Some(x -> (getArity(v), t)); case _ => None
+      }.toMap
     // println(globals)
     ds2.map(compile)
 
@@ -30,17 +32,19 @@ object Compiler:
     case TUnit      => IR.TUnit
     case TFun(_, _) => IR.TFun
     case TVar(_)    => IR.TPoly
+    case TCon(_)    => IR.TPoly // TODO
     case TMeta(id)  => throw new Exception(s"cannot compile type meta ?$id")
 
   // precondition: d is closure-converted and lambda-lifted
   def compile(d: Def)(implicit globals: Globals): IR.Def = d match
-    case Def(x, ty, v) =>
+    case DDef(x, ty, v) =>
       val (as, rt, b) = v.flattenLam
       val ps1 = as.map((x, t) => compile(t))
       val ps2 = if as.isEmpty then None else Some(IR.NEL.of(ps1))
       val rt1 = if as.isEmpty then compile(ty) else compile(rt)
       val (b1, et) = compile(as.map((_, t) => t).reverse, b)
       IR.Def(transformMain(x), ps2, rt1, wrapExpr(b1, et, rt))
+    case DData(x, cs) => ???
 
   // precondition: e is closure-converted and lambda-lifted
   def compile(k: List[Type], e: Expr)(implicit

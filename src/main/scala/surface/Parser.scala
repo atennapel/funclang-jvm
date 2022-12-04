@@ -31,6 +31,7 @@ object Parser:
         "False",
         "Int",
         "Bool",
+        "data",
         "_"
       ),
       operators = Set("=", ":", ";", "\\", ".", "->"),
@@ -68,7 +69,7 @@ object Parser:
 
   object TmParser:
     import parsley.expr.{precedence, Ops, InfixL, InfixR, Prefix, Postfix}
-    import parsley.combinator.{many, some, option, sepEndBy}
+    import parsley.combinator.{many, some, option, sepEndBy, sepBy}
     import parsley.Parsley.pos
 
     import LangLexer.{ident as ident0, userOp as userOp0, natural, uri}
@@ -82,7 +83,13 @@ object Parser:
       attempt(
         "(" <~> ")"
       ) #> TUnit <|> ("(" *> ty <* ")") <|> "Int" #> TInt <|> "Bool" #> TBool <|>
-        "_" #> THole <|> ident.map(TVar.apply)
+        "_" #> THole <|>
+        attempt(
+          identOrOp.flatMap(x =>
+            if x.head.isUpper then pure(TCon(x)) else empty
+          )
+        ) <|>
+        ident.map(TVar.apply)
 
     lazy val ty: Parsley[Type] =
       precedence[Type](tyAtom)(Ops(InfixR)("->" #> ((l, r) => TFun(l, r))))
@@ -229,7 +236,9 @@ object Parser:
 
     lazy val defns: Parsley[Defs] = sepEndBy(defn, ";")
     lazy val defn: Parsley[Def] =
-      attempt(identOrOp <~> many(defParam) <~> option(":" *> ty) <~> "=" *> tm)
+      ddata <|> attempt(
+        identOrOp <~> many(defParam) <~> option(":" *> ty) <~> "=" *> tm
+      )
         .map { case (((x, ds), ty), b) =>
           DDef(
             x,
@@ -240,5 +249,9 @@ object Parser:
         (identOrOp <~> many(defParam) <~> ":" *> ty).map { case ((x, ds), ty) =>
           DDecl(x, typeFromParams(ds, ty))
         }
+
+    lazy val ddata: Parsley[Def] =
+      ("data" *> identOrOp <~> many("|" *> identOrOp <~> many(tyAtom)))
+        .map { case (x, cons) => DData(x, cons) }
 
   lazy val parser: Parsley[Defs] = LangLexer.fully(TmParser.defns)

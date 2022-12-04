@@ -58,6 +58,7 @@ object Typechecking:
     case (C.TBool, C.TBool)               => ()
     case (C.TInt, C.TInt)                 => ()
     case (C.TVar(x), C.TVar(y)) if x == y => ()
+    case (C.TCon(x), C.TCon(y)) if x == y => ()
     case (C.TFun(t1, t2), C.TFun(t3, t4)) => unify(t1, t3); unify(t2, t4)
     case (C.TMeta(id), t)                 => solve(id, t)
     case (t, C.TMeta(id))                 => solve(id, t)
@@ -91,6 +92,8 @@ object Typechecking:
     zonk(t)
 
   // contexts
+  private val tglobals: mutable.Map[Name, Unit] = mutable.Map.empty
+  private val tcons: mutable.Map[Name, C.Type] = mutable.Map.empty
   private val globals: mutable.Map[Name, C.Type] = mutable.Map.empty
   private type Ctx = List[(Name, C.Type)]
 
@@ -104,10 +107,12 @@ object Typechecking:
 
   // type checking
   private def checkType(t: Type)(implicit ctx: Ctx): C.Type = t match
-    case TUnit      => C.TUnit
-    case TBool      => C.TBool
-    case TInt       => C.TInt
-    case TVar(x)    => C.TVar(x)
+    case TUnit                           => C.TUnit
+    case TBool                           => C.TBool
+    case TInt                            => C.TInt
+    case TVar(x)                         => C.TVar(x)
+    case TCon(x) if tglobals.contains(x) => C.TCon(x)
+    case TCon(x)    => throw new Exception(s"undefined type constructor $x")
     case TFun(a, b) => C.TFun(checkType(a), checkType(b))
     case THole      => freshTMeta()
 
@@ -199,17 +204,18 @@ object Typechecking:
   def typecheck(d: Def): Option[C.Def] =
     d match
       case DDecl(_, _) => None
+      case DData(_, _) => None
       case DDef("main", _, b) =>
         val cty = globals("main")
         val ctm = check(b, cty)(Nil)
-        Some(C.Def("main", cty, ctm))
+        Some(C.DDef("main", cty, ctm))
       case DDef(x, _, b) =>
         implicit val ctx: Ctx = Nil
         val cty = globals(x)
         val ctm = check(b, cty)
         val cty1 = gen(cty)
         globals += x -> cty1
-        Some(C.Def(x, cty1, ctm))
+        Some(C.DDef(x, cty1, ctm))
 
   def typecheck(d: Defs): C.Defs =
     globals.clear()
@@ -230,14 +236,31 @@ object Typechecking:
         globals.get(x) match
           case None     => globals += (x -> ct.getOrElse(freshTMeta()))
           case Some(ty) => ct.foreach(unify(_, ty))
+      case DData(x, cs) =>
+        if tglobals.contains(x) then
+          throw new Exception(s"duplicate data definition $x")
+        tglobals += x -> ()
+        cs.foreach((cx, as) => {
+          if tcons.contains(cx) then
+            throw new Exception(s"duplicate constructor definition ${cx} in $x")
+          tcons += cx -> C.TCon(x)
+        })
     }
-    val cds = d.flatMap(typecheck).map { case C.Def(x, t, b) =>
-      C.Def(x, zonk(t), zonk(b))
+    val cds = d.flatMap(typecheck).map {
+      case C.DDef(x, t, b) =>
+        C.DDef(x, zonk(t), zonk(b))
+      case C.DData(x, cs) => C.DData(x, cs.map((x, t) => (x, t.map(zonk))))
     }
     val utms = unsolvedTMetas
     if utms.nonEmpty then
       throw new Exception(
         s"unsolved type metas: ${utms.map(id => s"?$id").mkString(", ")}\n" ++
-          s"${cds.map(d => s"${d.name} : ${d.ty}").mkString("\n")}"
+          s"${cds
+              .map {
+                case C.DDef(x, t, _) => s"$x : $t";
+                case C.DData(x, cs) =>
+                  s"data $x | ${cs.map((y, as) => s"$y ${as.mkString(" ")}").mkString(" | ")}"
+              }
+              .mkString("\n")}"
       )
     cds
