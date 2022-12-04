@@ -417,8 +417,10 @@ object JvmGenerator:
             prefix.map(boxType).toArray*
           )
         val funTypeASM = Type.getMethodType(OBJECT_TYPE, OBJECT_TYPE)
-        val funTypeASM2 =
-          Type.getMethodType(descriptor(TFun), boxType(params(arity - i)))
+        val funTypeASM2 = Type.getMethodType(
+          boxType(ctx.returns(x)),
+          boxType(params(arity - i + 1))
+        )
         mg2.visitInvokeDynamicInsn(
           "apply",
           funDesc,
@@ -440,11 +442,10 @@ object JvmGenerator:
     val funDesc = MethodType
       .methodType(classOf[Function[?, ?]])
       .toMethodDescriptorString
-    // val funTypeASM = Type.getMethodType(ctx.returns(x), params.head)
     val funTypeASM = Type.getMethodType(OBJECT_TYPE, OBJECT_TYPE)
     val funTypeASM2 = Type.getMethodType(
-      Type.getType(classOf[Integer]),
-      Type.getType(classOf[Integer])
+      boxType(ctx.returns(x)),
+      boxType(params.head)
     )
     mg.visitInvokeDynamicInsn(
       "apply",
