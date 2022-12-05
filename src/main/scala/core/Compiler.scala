@@ -2,6 +2,7 @@ package core
 
 import Syntax.*
 import ir.Syntax as IR
+import EtaExpansion.*
 import ClosureConversion.*
 import LambdaLifting.*
 
@@ -13,8 +14,10 @@ object Compiler:
   private type Globals = Map[Name, (Arity, Type)]
 
   def compile(ds: Defs): IR.Defs =
-    val ds1 = closureConvert(ds)
+    val ds0 = etaExpand(ds)
+    val ds1 = closureConvert(ds0)
     val ds2 = lambdaLift(ds1)
+    // println(ds2.mkString("\n"))
     implicit val globals: Globals =
       ds2.flatMap {
         case DDef(x, t, v) => Some(x -> (getArity(v), t)); case _ => None

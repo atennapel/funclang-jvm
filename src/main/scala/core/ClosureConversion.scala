@@ -9,7 +9,9 @@ object ClosureConversion:
       DDef(x, t, v2)
     case DData(x, cs) => ???
 
-  def closureConvert(ds: Defs): Defs = ds.map(closureConvert)
+  def closureConvert(ds: Defs): Defs =
+    // println(ds.mkString("\n"))
+    ds.map(closureConvert)
 
   def closureConvert(k: List[(Name, Type)], e: Expr): Expr = e match
     case Lam(_, _, _, _) =>

@@ -30,6 +30,12 @@ object Syntax:
     case BMul
     case BSub
     case BLt
+
+    override def toString: String = this match
+      case BAdd => "+"
+      case BMul => "*"
+      case BSub => "-"
+      case BLt  => "<"
   export Binop.*
 
   enum Expr:
@@ -43,6 +49,18 @@ object Syntax:
     case UnitLit
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
     case BinopExpr(op: Binop, left: Expr, right: Expr)
+
+    override def toString: String = this match
+      case Local(ix)           => s"'$ix"
+      case Global(x)           => x
+      case App(fn, arg)        => s"($fn $arg)"
+      case Lam(x, t1, t2, b)   => s"(\\($x : $t1) : $t2. $b)"
+      case Let(x, t, v, b)     => s"(let $x : $t = $v; $b)"
+      case IntLit(v)           => v.toString
+      case BoolLit(v)          => v.toString
+      case UnitLit             => "()"
+      case If(c, a, b)         => s"(if $c then $a else $b)"
+      case BinopExpr(op, a, b) => s"($a $op $b)"
 
     def app(args: List[Expr]): Expr = args.foldLeft(this)(App.apply)
 
@@ -118,6 +136,10 @@ object Syntax:
   enum Def:
     case DDef(name: Name, ty: Type, value: Expr)
     case DData(name: Name, cons: List[(Name, List[Type])])
+
+    override def toString: String = this match
+      case DDef(x, t, v) => s"$x : $t = $v"
+      case DData(x, c)   => ???
   export Def.*
 
   type Defs = List[Def]

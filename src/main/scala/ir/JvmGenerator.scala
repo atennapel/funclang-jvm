@@ -1,6 +1,7 @@
 package ir
 
 import Syntax.*
+import core.GenSym.uniq
 
 import org.objectweb.asm.*
 import org.objectweb.asm.Opcodes.*
@@ -15,12 +16,6 @@ import java.lang.invoke.MethodType
 import java.lang.invoke.MethodHandles
 
 object JvmGenerator:
-  var gensym: Int = 0
-  def uniq: Int =
-    val t = gensym
-    gensym += 1
-    t
-
   final case class Ctx(
       moduleName: Name,
       arities: Map[Name, Arity],

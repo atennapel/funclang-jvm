@@ -1,0 +1,5 @@
+add x y z = x + y + z;
+
+papp = \x. add 1 x;
+
+main () = papp 2 3;

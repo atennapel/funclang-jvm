@@ -1,14 +1,9 @@
 package core
 
 import Syntax.*
+import GenSym.uniq
 
 object LambdaLifting:
-  var gensym: Int = 0
-  def uniq: Int =
-    val t = gensym
-    gensym += 1
-    t
-
   def lambdaLift(ds: Defs): Defs = ds.flatMap(lambdaLift)
 
   def lambdaLift(d: Def): Defs = d match

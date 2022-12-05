@@ -35,10 +35,14 @@ TODO:
 - [x] Polymorphism
 - [ ] Algebraic data types
 - [ ] IR code generation improvements
+  - [x] Try to eta-expand based on type to reduce closures
+  - [ ] Inlining
+  - [ ] Beta-reduction
+  - [ ] Case commutation
+  - [ ] What order do the core steps have to be done in, should they be repeated?
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
   - [ ] Optimize partial applications
-  - [ ] Try to eta-expand based on type to reduce closures
   - [ ] Generate Function for all primitive combinations
   - [ ] Closures with arity
   - [ ] Improve TCO
