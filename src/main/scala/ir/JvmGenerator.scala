@@ -35,9 +35,16 @@ object JvmGenerator:
       locals: Map[Lvl, Int]
   )
 
-  def generate(moduleName: Name, ds: Defs): Array[Byte] =
+  private def onlyDefs(ds: Defs): List[DDef] =
+    ds.flatMap {
+      case d @ DDef(x, t, v, b) => Some(d)
+      case _                    => None
+    }
+
+  def generate(moduleName: Name, ds0: Defs): Array[Byte] =
+    val ds = onlyDefs(ds0)
     val arities = ds.map(d => d.name -> d.arity).toMap
-    val references = ds.map { case Def(x, _, _, b) => x -> b.globals }.toMap
+    val references = ds.map { case DDef(x, _, _, b) => x -> b.globals }.toMap
     val methodsTR =
       ds.flatMap(d =>
         createMethod(d, references).map((m, b) => d.name -> (m, b))
@@ -112,8 +119,8 @@ object JvmGenerator:
       ds0: Defs
   )(implicit ctx: Ctx, cw: ClassWriter): Unit =
     val ds = ds0.filter {
-      case Def(x, None, rt, b) if constantValue(b).isEmpty => true
-      case _                                               => false
+      case DDef(x, None, rt, b) if constantValue(b).isEmpty => true
+      case _                                                => false
     }
     if ds.nonEmpty then
       val m = new Method("<clinit>", Type.VOID_TYPE, Nil.toArray)
@@ -123,7 +130,7 @@ object JvmGenerator:
         MethodCtx("<clinit>", 0, false, 0, Map.empty)
       ds.foreach(d => {
         d match
-          case Def(x, None, rt, b) =>
+          case DDef(x, None, rt, b) =>
             implicit val lMethodStart = new Label
             mg.visitLabel(lMethodStart)
             gen(b)
@@ -138,7 +145,7 @@ object JvmGenerator:
       references: Map[Name, Set[Name]]
   ): Option[(Method, Boolean)] =
     d match
-      case Def(x, Some(ps), rt, b) =>
+      case DDef(x, Some(ps), rt, b) =>
         Some(
           (
             new Method(
@@ -209,14 +216,15 @@ object JvmGenerator:
   private val FUNCTION_TYPE = Type.getType("Ljava/util/function/Function;")
 
   private def descriptor(t: IRType): Type = t match
-    case TUnit => Type.BOOLEAN_TYPE
-    case TInt  => Type.INT_TYPE
-    case TBool => Type.BOOLEAN_TYPE
-    case TFun  => FUNCTION_TYPE
-    case TPoly => OBJECT_TYPE
+    case TUnit   => Type.BOOLEAN_TYPE
+    case TInt    => Type.INT_TYPE
+    case TBool   => Type.BOOLEAN_TYPE
+    case TFun    => FUNCTION_TYPE
+    case TPoly   => OBJECT_TYPE
+    case TCon(x) => Type.getType(s"L$x;")
 
   private def gen(d: Def)(implicit ctx: Ctx, cw: ClassWriter): Unit = d match
-    case Def(x, None, rt, b) =>
+    case DDef(x, None, rt, b) =>
       cw.visitField(
         ACC_PUBLIC + ACC_FINAL + ACC_STATIC,
         x,
@@ -224,7 +232,7 @@ object JvmGenerator:
         null,
         constantValue(b).orNull
       )
-    case Def(x, Some(ps), _, b) =>
+    case DDef(x, Some(ps), _, b) =>
       val m = ctx.methods(x)
       val tr = ctx.tailRecursive.contains(x)
       implicit val mctx: MethodCtx =
@@ -236,6 +244,7 @@ object JvmGenerator:
       gen(b)
       mg.returnValue()
       mg.endMethod()
+    case _ =>
 
   private def gen(e: Expr)(implicit
       ctx: Ctx,

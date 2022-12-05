@@ -12,7 +12,7 @@ object LambdaLifting:
       val (as, rt, b) = v.flattenLam
       val (ds, b1) = lambdaLift(b)(x)
       ds ++ List(DDef(x, t, b1.lams(as, rt)))
-    case DData(x, cs) => ???
+    case DData(x, cs) => List(d)
 
   def lambdaLift(e: Expr)(implicit topName: Name): (Defs, Expr) = e match
     case Lam(_, _, _, _) =>

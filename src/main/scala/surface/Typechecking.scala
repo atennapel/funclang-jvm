@@ -220,33 +220,40 @@ object Typechecking:
   def typecheck(d: Defs): C.Defs =
     globals.clear()
     tmetas.clear()
-    d.foreach {
+    val datadefs = d.flatMap {
       case DDecl("main", ty) =>
         val cty = C.TFun(C.TUnit, C.TInt)
         unify(checkType(ty)(Nil), cty)
         globals += ("main" -> cty)
+        None
       case DDef("main", t, _) =>
         val ty = C.TFun(C.TUnit, C.TInt)
         t.foreach(t => unify(checkType(t)(Nil), ty))
         globals += ("main" -> ty)
+        None
       case DDecl(x, t) =>
         globals += (x -> checkType(t)(Nil))
+        None
       case DDef(x, t, _) =>
         val ct = t.map(t => checkType(t)(Nil))
         globals.get(x) match
           case None     => globals += (x -> ct.getOrElse(freshTMeta()))
           case Some(ty) => ct.foreach(unify(_, ty))
+        None
       case DData(x, cs) =>
         if tglobals.contains(x) then
           throw new Exception(s"duplicate data definition $x")
         tglobals += x -> ()
-        cs.foreach((cx, as) => {
+        val cs1 = cs.map((cx, as) => {
           if tcons.contains(cx) then
-            throw new Exception(s"duplicate constructor definition ${cx} in $x")
+            throw new Exception(s"duplicate constructor definition $cx in $x")
           tcons += cx -> C.TCon(x)
+          val as1 = as.map(a => checkType(a)(Nil))
+          (x, as1)
         })
+        Some(C.DData(x, cs1))
     }
-    val cds = d.flatMap(typecheck).map {
+    val cds = datadefs ++ d.flatMap(typecheck).map {
       case C.DDef(x, t, b) =>
         C.DDef(x, zonk(t), zonk(b))
       case C.DData(x, cs) => C.DData(x, cs.map((x, t) => (x, t.map(zonk))))

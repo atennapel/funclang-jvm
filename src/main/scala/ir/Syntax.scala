@@ -69,14 +69,21 @@ object Syntax:
     case TInt
     case TFun
     case TPoly
+    case TCon(name: Name)
   export IRType.*
 
-  final case class Def(
-      name: Name,
-      params: Option[NEL[IRType]],
-      retrn: IRType,
-      body: Expr
-  ):
-    def arity = params.map(_.size).getOrElse(0)
+  enum Def:
+    case DDef(
+        name: Name,
+        params: Option[NEL[IRType]],
+        retrn: IRType,
+        body: Expr
+    )
+    case DData(name: Name, cons: List[(Name, List[IRType])])
+
+    def arity = this match
+      case DDef(_, ps, _, _) => ps.map(_.size).getOrElse(0)
+      case DData(_, cs)      => cs.size
+  export Def.*
 
   type Defs = List[Def]

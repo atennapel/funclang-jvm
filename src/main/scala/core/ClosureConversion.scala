@@ -7,7 +7,7 @@ object ClosureConversion:
     case DDef(x, t, v) =>
       val v2 = closureConvert(Nil, v)
       DDef(x, t, v2)
-    case DData(x, cs) => ???
+    case DData(x, cs) => d
 
   def closureConvert(ds: Defs): Defs =
     // println(ds.mkString("\n"))

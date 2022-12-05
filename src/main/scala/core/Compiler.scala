@@ -37,7 +37,7 @@ object Compiler:
     case TUnit      => IR.TUnit
     case TFun(_, _) => IR.TFun
     case TVar(_)    => IR.TPoly
-    case TCon(_)    => IR.TPoly // TODO
+    case TCon(x)    => IR.TCon(x)
     case TMeta(id)  => throw new Exception(s"cannot compile type meta ?$id")
 
   // precondition: d is closure-converted and lambda-lifted
@@ -48,8 +48,8 @@ object Compiler:
       val ps2 = if as.isEmpty then None else Some(IR.NEL.of(ps1))
       val rt1 = if as.isEmpty then compile(ty) else compile(rt)
       val (b1, et) = compile(as.map((_, t) => t).reverse, b)
-      IR.Def(transformMain(x), ps2, rt1, wrapExpr(b1, et, rt))
-    case DData(x, cs) => ???
+      IR.DDef(transformMain(x), ps2, rt1, wrapExpr(b1, et, rt))
+    case DData(x, cs) => IR.DData(x, cs.map((x, as) => (x, as.map(compile))))
 
   // precondition: e is closure-converted and lambda-lifted
   def compile(k: List[Type], e: Expr)(implicit
@@ -120,6 +120,7 @@ object Compiler:
   private def box(t: Type, e: IR.Expr): IR.Expr = t match
     case TFun(_, _) => e
     case TVar(_)    => e
+    case TCon(_)    => e
     case t =>
       val ct = compile(t)
       e match
@@ -130,6 +131,7 @@ object Compiler:
   private def unbox(t: Type, e: IR.Expr): IR.Expr = t match
     case TFun(_, _) => e
     case TVar(_)    => e
+    case TCon(_)    => e
     case t =>
       val ct = compile(t)
       e match
