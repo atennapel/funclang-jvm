@@ -36,8 +36,8 @@ TODO:
 - [ ] Algebraic data types
 - [ ] IR code generation improvements
   - [x] Try to eta-expand based on type to reduce closures
+  - [x] Beta-reduction
   - [ ] Inlining
-  - [ ] Beta-reduction
   - [ ] Case commutation
   - [ ] What order do the core steps have to be done in, should they be repeated?
   - [ ] Optimize unit parameters and returns
