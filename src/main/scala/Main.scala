@@ -19,9 +19,4 @@ object Main:
     val ds = parser.parseFromFile(new File(filename)).flatMap(_.toTry).get
     val ds2 = typecheck(ds)
     val ir = compile(ds2)
-    val bs = generate(moduleName, ir)
-    val bos = new BufferedOutputStream(
-      new FileOutputStream(s"$moduleName.class")
-    )
-    bos.write(bs)
-    bos.close()
+    generate(moduleName, ir)

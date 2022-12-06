@@ -49,6 +49,7 @@ object Syntax:
     case UnitLit
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
     case BinopExpr(op: Binop, left: Expr, right: Expr)
+    case Con(name: Name, ty: Type, args: List[Expr])
 
     override def toString: String = this match
       case Local(ix)           => s"'$ix"
@@ -61,11 +62,17 @@ object Syntax:
       case UnitLit             => "()"
       case If(c, a, b)         => s"(if $c then $a else $b)"
       case BinopExpr(op, a, b) => s"($a $op $b)"
+      case Con(x, _, Nil)      => x
+      case Con(x, _, as)       => s"($x ${as.map(_.toString).mkString(" ")})"
 
     def app(args: List[Expr]): Expr = args.foldLeft(this)(App.apply)
 
     def lams(params: List[(Name, Type)], rt: Type): Expr =
-      params.foldRight(this) { case ((x, t), b) => Lam(x, t, rt, b) }
+      params
+        .foldRight[(Expr, Type)]((this, rt)) { case ((x, t), (b, pt)) =>
+          (Lam(x, t, pt, b), TFun(t, pt))
+        }
+        ._1
 
     def freeLocals: List[Ix] = this match
       case Local(i)        => List(i)
@@ -75,7 +82,9 @@ object Syntax:
       case App(f, a)          => f.freeLocals ++ a.freeLocals
       case If(c, a, b)        => c.freeLocals ++ a.freeLocals ++ b.freeLocals
       case BinopExpr(o, a, b) => a.freeLocals ++ b.freeLocals
-      case _                  => Nil
+      case Con(_, _, as) =>
+        as.foldLeft[List[Ix]](Nil)((res, e) => res ++ e.freeLocals)
+      case _ => Nil
 
     def shift(d: Int, c: Ix): Expr = this match
       case Local(k) if k >= c => Local(k + d)
@@ -85,6 +94,7 @@ object Syntax:
       case If(cond, t, f) =>
         If(cond.shift(d, c), t.shift(d, c), f.shift(d, c))
       case BinopExpr(op, l, r) => BinopExpr(op, l.shift(d, c), r.shift(d, c))
+      case Con(x, ty, as)      => Con(x, ty, as.map(_.shift(d, c)))
       case _                   => this
 
     def subst(j: Ix, s: Expr): Expr = this match
@@ -96,6 +106,7 @@ object Syntax:
       case If(cond, t, f) =>
         If(cond.subst(j, s), t.subst(j, s), f.subst(j, s))
       case BinopExpr(op, l, r) => BinopExpr(op, l.subst(j, s), r.subst(j, s))
+      case Con(x, ty, as)      => Con(x, ty, as.map(_.subst(j, s)))
       case _                   => this
 
     def psubst(sub: Map[Ix, Expr]): Expr = this match
@@ -113,6 +124,7 @@ object Syntax:
       case If(cond, t, f) =>
         If(cond.psubst(sub), t.psubst(sub), f.psubst(sub))
       case BinopExpr(op, l, r) => BinopExpr(op, l.psubst(sub), r.psubst(sub))
+      case Con(x, ty, as)      => Con(x, ty, as.map(_.psubst(sub)))
       case _                   => this
 
     def beta(arg: Expr): Expr = this match
@@ -139,7 +151,8 @@ object Syntax:
 
     override def toString: String = this match
       case DDef(x, t, v) => s"$x : $t = $v"
-      case DData(x, c)   => ???
+      case DData(x, c) =>
+        s"data $x | ${c.map((y, as) => s"$y ${as.map(_.toString).mkString(" ")}").mkString(" | ")}"
   export Def.*
 
   type Defs = List[Def]

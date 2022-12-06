@@ -16,8 +16,20 @@ object Compiler:
   private type Globals = Map[Name, (Arity, Type)]
 
   def compile(ds: Defs): IR.Defs =
-    val ds0 = eliminateDeadCode(betaReduce(etaExpand(ds)))
+    // println(ds.mkString("\n"))
+    // println("------------")
+    val dsm3 = etaExpand(ds)
+    // println(dsm3.mkString("\n"))
+    // println("------------")
+    val dsm2 = betaReduce(dsm3)
+    // println(dsm2.mkString("\n"))
+    // println("------------")
+    val ds0 = eliminateDeadCode(dsm2)
+    // println(ds0.mkString("\n"))
+    // println("------------")
     val ds1 = closureConvert(ds0)
+    // println(ds1.mkString("\n"))
+    // println("------------")
     val ds2 = lambdaLift(ds1)
     // println(ds2.mkString("\n"))
     implicit val globals: Globals =
@@ -49,7 +61,7 @@ object Compiler:
       val rt1 = if as.isEmpty then compile(ty) else compile(rt)
       val (b1, et) = compile(as.map((_, t) => t).reverse, b)
       IR.DDef(transformMain(x), ps2, rt1, wrapExpr(b1, et, rt))
-    case DData(x, cs) => IR.DData(x, cs.map((x, as) => (x, as.map(compile))))
+    case DData(x, cs) => IR.DData(x, cs.map((c, as) => (c, as.map(compile))))
 
   // precondition: e is closure-converted and lambda-lifted
   def compile(k: List[Type], e: Expr)(implicit
@@ -107,6 +119,18 @@ object Compiler:
     case BoolLit(v)      => (IR.BoolLit(v), TBool)
     case UnitLit         => (IR.UnitLit, TUnit)
     case Lam(_, _, _, _) => throw new Exception("cannot compile a lambda")
+    case Con(x, ty, as) =>
+      (
+        IR.Con(
+          x,
+          compile(ty),
+          as.map(e => {
+            val (ce, t) = compile(k, e)
+            (ce, compile(t))
+          })
+        ),
+        ty
+      )
 
   private def wrapExpr(e: IR.Expr, t1: Type, t2: Type): IR.Expr = (t1, t2) match
     case (TUnit, TVar(_)) => box(t1, e)

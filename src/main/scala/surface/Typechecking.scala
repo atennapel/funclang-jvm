@@ -93,7 +93,8 @@ object Typechecking:
 
   // contexts
   private val tglobals: mutable.Map[Name, Unit] = mutable.Map.empty
-  private val tcons: mutable.Map[Name, C.Type] = mutable.Map.empty
+  private val tcons: mutable.Map[Name, (C.Type, List[C.Type])] =
+    mutable.Map.empty
   private val globals: mutable.Map[Name, C.Type] = mutable.Map.empty
   private type Ctx = List[(Name, C.Type)]
 
@@ -155,6 +156,15 @@ object Typechecking:
     case UnitLit    => (C.UnitLit, C.TUnit)
     case BoolLit(v) => (C.BoolLit(v), C.TBool)
     case IntLit(v)  => (C.IntLit(v), C.TInt)
+    case Var(x) if x.head.isUpper =>
+      tcons.get(x) match
+        case None => throw new Exception(s"undefined constructor $x")
+        case Some((ty, as)) =>
+          (
+            C.Con(x, ty, (0 until as.size).reverse.map(i => C.Local(i)).toList)
+              .lams(as.zipWithIndex.map((t, i) => (s"a$i", t)), ty),
+            as.foldRight(ty)((a, rt) => C.TFun(a, rt))
+          )
     case Var(x) =>
       lookup(x) match
         case Some((i, t)) => (C.Local(i), t)
@@ -247,9 +257,9 @@ object Typechecking:
         val cs1 = cs.map((cx, as) => {
           if tcons.contains(cx) then
             throw new Exception(s"duplicate constructor definition $cx in $x")
-          tcons += cx -> C.TCon(x)
           val as1 = as.map(a => checkType(a)(Nil))
-          (x, as1)
+          tcons += cx -> (C.TCon(x), as1)
+          (cx, as1)
         })
         Some(C.DData(x, cs1))
     }

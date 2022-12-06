@@ -34,6 +34,11 @@ TODO:
   - [x] Unification and holes
 - [x] Polymorphism
 - [ ] Algebraic data types
+  - [x] Types
+  - [x] Constructors
+  - [ ] Elimination
+  - [ ] Parameterized datatypes
+  - [ ] Optimize arguments-less constructors
 - [ ] IR code generation improvements
   - [x] Try to eta-expand based on type to reduce closures
   - [x] Beta-reduction

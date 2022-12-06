@@ -39,6 +39,7 @@ object Syntax:
     case BinopExpr(op: Binop, left: Expr, right: Expr)
     case Box(ty: IRType, expr: Expr)
     case Unbox(ty: IRType, expr: Expr)
+    case Con(name: Name, ty: IRType, args: List[(Expr, IRType)])
 
     def globals: Set[Name] = this match
       case Local(_) => Set.empty
@@ -60,6 +61,8 @@ object Syntax:
       case BinopExpr(_, a, b) => a.globals ++ b.globals
       case Box(_, e)          => e.globals
       case Unbox(_, e)        => e.globals
+      case Con(_, _, as) =>
+        as.map(_._1).foldLeft(Set.empty[Name])((s, e) => s ++ e.globals)
 
   export Expr.*
 

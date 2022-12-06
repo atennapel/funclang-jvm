@@ -15,6 +15,9 @@ import java.lang.reflect.Modifier
 import java.lang.invoke.MethodType
 import java.lang.invoke.MethodHandles
 
+import java.io.BufferedOutputStream
+import java.io.FileOutputStream
+
 object JvmGenerator:
   final case class Ctx(
       moduleName: Name,
@@ -41,24 +44,54 @@ object JvmGenerator:
       case _                    => None
     }
 
-  def generate(moduleName: Name, ds0: Defs): Array[Byte] =
+  // from https://stackoverflow.com/questions/8104479/how-to-find-the-longest-common-prefix-of-two-strings-in-scala
+  private def longestCommonPrefix(a: String, b: String): String = {
+    var same = true
+    var i = 0
+    while same && i < math.min(a.length, b.length) do
+      if a.charAt(i) != b.charAt(i) then same = false
+      else i += 1
+    a.substring(0, i)
+  }
+
+  def generate(moduleName: Name, ds0: Defs): Unit =
+    // println(s"generate $ds0")
     val ds = onlyDefs(ds0)
     val arities = ds.map(d => d.name -> d.arity).toMap
     val references = ds.map { case DDef(x, _, _, b) => x -> b.globals }.toMap
+    val emptyCtx = Ctx(
+      moduleName,
+      Map.empty,
+      Map.empty,
+      Map.empty,
+      Set.empty,
+      Map.empty,
+      Map.empty
+    )
     val methodsTR =
       ds.flatMap(d =>
-        createMethod(d, references).map((m, b) => d.name -> (m, b))
+        createMethod(d, references)(emptyCtx).map((m, b) => d.name -> (m, b))
       ).toMap
     val methods = methodsTR.map { case (k, (m, _)) => k -> m }
     val tr = methodsTR.filter { case (k, (m, b)) => b }.keySet
     val params =
-      ds.map(d => d.name -> d.params.map(as => as.map(descriptor))).toMap
-    val returns = ds.map(d => d.name -> descriptor(d.retrn)).toMap
+      ds.map(d =>
+        d.name -> d.params.map(as => as.map(t => descriptor(t)(emptyCtx)))
+      ).toMap
+    val returns = ds.map(d => d.name -> descriptor(d.retrn)(emptyCtx)).toMap
     implicit val ctx: Ctx =
       Ctx(moduleName, arities, methods, references, tr, params, returns)
-    implicit val cw = new ClassWriter(
+    implicit val cw: ClassWriter = new ClassWriter(
       ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES
-    )
+    ) {
+      override protected def getCommonSuperClass(
+          type1: String,
+          type2: String
+      ): String =
+        // println(s"getCommonSuperClass $type1 $type2")
+        val prefix = longestCommonPrefix(type1, type2)
+        List.from(prefix).init.mkString("")
+    }
     cw.visit(V1_8, ACC_PUBLIC, moduleName, null, "java/lang/Object", null)
 
     // empty constructor
@@ -110,10 +143,14 @@ object JvmGenerator:
       main.visitMaxs(3, 1)
       main.visitEnd
     // generate user definitions
-    ds.foreach(gen)
+    ds0.foreach(gen)
     genStaticBlock(ds)
     cw.visitEnd()
-    cw.toByteArray()
+    val bos = new BufferedOutputStream(
+      new FileOutputStream(s"$moduleName.class")
+    )
+    bos.write(cw.toByteArray())
+    bos.close()
 
   private def genStaticBlock(
       ds0: Defs
@@ -143,7 +180,7 @@ object JvmGenerator:
   private def createMethod(
       d: Def,
       references: Map[Name, Set[Name]]
-  ): Option[(Method, Boolean)] =
+  )(implicit ctx: Ctx): Option[(Method, Boolean)] =
     d match
       case DDef(x, Some(ps), rt, b) =>
         Some(
@@ -189,8 +226,9 @@ object JvmGenerator:
         !(isRecursive(x, f) || a.toList.exists(isRecursive(x, _)))
       case Let(ty, v, b) =>
         !isRecursive(x, v) && isTailRecursive(x, arity, rs, b)
-      case Box(_, e)   => !isRecursive(x, e)
-      case Unbox(_, e) => !isRecursive(x, e)
+      case Box(_, e)     => !isRecursive(x, e)
+      case Unbox(_, e)   => !isRecursive(x, e)
+      case Con(_, _, as) => !as.exists((e, _) => isRecursive(x, e))
 
   private def isRecursive(x: Name, e: Expr): Boolean = e match
     case IntLit(_)  => false
@@ -206,6 +244,7 @@ object JvmGenerator:
     case Let(ty, v, b) => isRecursive(x, v) || isRecursive(x, b)
     case Box(_, e)     => isRecursive(x, e)
     case Unbox(_, e)   => isRecursive(x, e)
+    case Con(_, _, as) => as.exists((e, _) => isRecursive(x, e))
 
   private def constantValue(e: Expr): Option[Any] = e match
     case IntLit(v)  => Some(v)
@@ -215,36 +254,139 @@ object JvmGenerator:
   private val OBJECT_TYPE = Type.getType(classOf[Object])
   private val FUNCTION_TYPE = Type.getType("Ljava/util/function/Function;")
 
-  private def descriptor(t: IRType): Type = t match
+  private def descriptor(t: IRType)(implicit ctx: Ctx): Type = t match
     case TUnit   => Type.BOOLEAN_TYPE
     case TInt    => Type.INT_TYPE
     case TBool   => Type.BOOLEAN_TYPE
     case TFun    => FUNCTION_TYPE
     case TPoly   => OBJECT_TYPE
-    case TCon(x) => Type.getType(s"L$x;")
+    case TCon(x) => Type.getType(s"L${ctx.moduleName}$$$x;")
 
-  private def gen(d: Def)(implicit ctx: Ctx, cw: ClassWriter): Unit = d match
-    case DDef(x, None, rt, b) =>
+  private def gen(d: Def)(implicit ctx: Ctx, cw: ClassWriter): Unit =
+    // println(s"gen $d")
+    d match
+      case DDef(x, None, rt, b) =>
+        cw.visitField(
+          ACC_PUBLIC + ACC_FINAL + ACC_STATIC,
+          x,
+          descriptor(rt).getDescriptor(),
+          null,
+          constantValue(b).orNull
+        )
+      case DDef(x, Some(ps), _, b) =>
+        val m = ctx.methods(x)
+        val tr = ctx.tailRecursive.contains(x)
+        implicit val mctx: MethodCtx =
+          MethodCtx(x, ps.size, tr, ps.size, Map.empty)
+        implicit val mg: GeneratorAdapter =
+          new GeneratorAdapter(ACC_PUBLIC + ACC_STATIC, m, null, null, cw)
+        implicit val lMethodStart = new Label
+        mg.visitLabel(lMethodStart)
+        gen(b)
+        mg.returnValue()
+        mg.endMethod()
+      case DData(x, cs) =>
+        val className = s"${ctx.moduleName}$$$x"
+        val datacw = new ClassWriter(
+          ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES
+        )
+        datacw.visit(
+          V1_8,
+          ACC_PUBLIC + ACC_ABSTRACT,
+          className,
+          null,
+          "java/lang/Object",
+          null
+        )
+        // private empty constructor
+        val con = datacw.visitMethod(ACC_PROTECTED, "<init>", "()V", null, null)
+        con.visitVarInsn(ALOAD, 0)
+        con.visitMethodInsn(
+          INVOKESPECIAL,
+          "java/lang/Object",
+          "<init>",
+          "()V",
+          false
+        )
+        con.visitInsn(RETURN)
+        con.visitMaxs(1, 1)
+        con.visitEnd()
+        // datatype constructors
+        cs.foreach((x, as) => {
+          gen(className, x, as)
+          datacw.visitInnerClass(
+            s"$className$$$x",
+            className,
+            x,
+            ACC_PUBLIC + ACC_STATIC + ACC_FINAL
+          )
+        })
+        // done
+        datacw.visitEnd()
+        cw.visitInnerClass(
+          className,
+          ctx.moduleName,
+          x,
+          ACC_PUBLIC + ACC_ABSTRACT + ACC_STATIC
+        )
+        val bos = new BufferedOutputStream(
+          new FileOutputStream(s"$className.class")
+        )
+        bos.write(datacw.toByteArray())
+        bos.close()
+
+  private def gen(superName: String, x: Name, as: List[IRType])(implicit
+      ctx: Ctx
+  ): Unit =
+    val className = s"$superName$$$x"
+    val cw = new ClassWriter(
+      ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES
+    )
+    cw.visit(
+      V1_8,
+      ACC_PUBLIC + ACC_STATIC + ACC_FINAL,
+      className,
+      null,
+      superName,
+      null
+    )
+    // fields
+    as.zipWithIndex.foreach((ty, i) => {
       cw.visitField(
-        ACC_PUBLIC + ACC_FINAL + ACC_STATIC,
-        x,
-        descriptor(rt).getDescriptor(),
+        ACC_PUBLIC + ACC_FINAL,
+        s"a$i",
+        descriptor(ty).getDescriptor,
         null,
-        constantValue(b).orNull
+        null
       )
-    case DDef(x, Some(ps), _, b) =>
-      val m = ctx.methods(x)
-      val tr = ctx.tailRecursive.contains(x)
-      implicit val mctx: MethodCtx =
-        MethodCtx(x, ps.size, tr, ps.size, Map.empty)
-      implicit val mg: GeneratorAdapter =
-        new GeneratorAdapter(ACC_PUBLIC + ACC_STATIC, m, null, null, cw)
-      implicit val lMethodStart = new Label
-      mg.visitLabel(lMethodStart)
-      gen(b)
-      mg.returnValue()
-      mg.endMethod()
-    case _ =>
+    })
+    // class constructor
+    val m = new Method("<init>", Type.VOID_TYPE, as.map(descriptor).toArray)
+    val mg: GeneratorAdapter =
+      new GeneratorAdapter(ACC_PUBLIC, m, null, null, cw)
+    mg.visitVarInsn(ALOAD, 0)
+    mg.visitMethodInsn(
+      INVOKESPECIAL,
+      superName,
+      "<init>",
+      "()V",
+      false
+    )
+    as.zipWithIndex.foreach((ty, i) => {
+      mg.loadThis()
+      mg.loadArg(i)
+      mg.putField(Type.getType(s"L$className;"), s"a$i", descriptor(ty))
+    })
+    mg.visitInsn(RETURN)
+    mg.visitMaxs(1, 1)
+    mg.visitEnd()
+    // done
+    cw.visitEnd()
+    val bos = new BufferedOutputStream(
+      new FileOutputStream(s"$className.class")
+    )
+    bos.write(cw.toByteArray())
+    bos.close()
 
   private def gen(e: Expr)(implicit
       ctx: Ctx,
@@ -328,6 +470,20 @@ object JvmGenerator:
             mg.visitLabel(lEnd)
       case Box(t, a)   => gen(a); box(descriptor(t))
       case Unbox(t, a) => gen(a); mg.unbox(descriptor(t))
+      case Con(x, TCon(y), as) =>
+        val conType = Type.getType(s"L${ctx.moduleName}$$$y$$$x;")
+        mg.newInstance(conType)
+        mg.dup()
+        as.foreach((e, _) => gen(e))
+        mg.invokeConstructor(
+          conType,
+          new Method(
+            "<init>",
+            Type.VOID_TYPE,
+            as.map((_, t) => descriptor(t)).toArray
+          )
+        )
+      case _ => throw new Exception("impossible")
 
   // ASM generates a constructor application, so we override it here
   // to generate simpler bytecode
