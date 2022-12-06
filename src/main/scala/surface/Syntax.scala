@@ -31,6 +31,7 @@ object Syntax:
     case BoolLit(value: Boolean)
     case UnitLit
     case Hole
+    case Case(scrut: Expr, cases: List[(Name, List[Name], Expr)])
   export Expr.*
 
   enum Def:

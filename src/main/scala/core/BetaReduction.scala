@@ -44,6 +44,13 @@ object BetaReduction:
       If(betaReduce(c), betaReduce(a), betaReduce(b))
     case BinopExpr(op, a, b) =>
       BinopExpr(op, betaReduce(a), betaReduce(b))
+    case Con(x, t, as) => Con(x, t, as.map(betaReduce))
+    case Case(t, rt, cs) =>
+      Case(
+        betaReduce(t),
+        rt,
+        cs.map((x, vs, e) => (x, vs, betaReduce(e)))
+      )
     case _ => e
 
 // (\x y z. f x y z) a b

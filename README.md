@@ -37,6 +37,7 @@ TODO:
   - [x] Types
   - [x] Constructors
   - [ ] Elimination
+  - [ ] Otherwise case
   - [ ] Parameterized datatypes
   - [ ] Optimize arguments-less constructors
 - [ ] IR code generation improvements
@@ -51,3 +52,5 @@ TODO:
   - [ ] Generate Function for all primitive combinations
   - [ ] Closures with arity
   - [ ] Improve TCO
+  - [ ] Optimize ADT representation
+  - [ ] Optimize ADT elimination

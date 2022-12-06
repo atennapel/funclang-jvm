@@ -32,6 +32,7 @@ object Parser:
         "Int",
         "Bool",
         "data",
+        "case",
         "_"
       ),
       operators = Set("=", ":", ";", "\\", ".", "->"),
@@ -100,11 +101,11 @@ object Parser:
         ("(" *> tm <* ")") <|>
         natural.map(IntLit.apply) <|>
         "True" #> BoolLit(true) <|>
-        "False" #> BoolLit(true) <|>
+        "False" #> BoolLit(false) <|>
         "_" #> Hole <|>
         ident.map(Var.apply)
 
-    lazy val tm: Parsley[Expr] = ifTm <|> let <|> lam <|> app
+    lazy val tm: Parsley[Expr] = ifTm <|> caseP <|> let <|> lam <|> app
 
     private lazy val app: Parsley[Expr] =
       precedence[Expr](appAtom)(
@@ -148,6 +149,15 @@ object Parser:
             lamFromDefParams(ps, v, ty.isEmpty, false),
             b
           )
+      }
+
+    private lazy val caseP: Parsley[Expr] =
+      ("case" *> atom <~> "{" *> sepEndBy(casePart, ";") <* "}")
+        .map((t, cs) => Case(t, cs))
+
+    private lazy val casePart: Parsley[(Name, List[Name], Expr)] =
+      (identOrOp <~> many(identOrOp) <~> "->" *> tm).map { case ((x, xs), t) =>
+        (x, xs, t)
       }
 
     private type DefParam = (List[Name], Option[Type])

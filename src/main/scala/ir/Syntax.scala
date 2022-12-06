@@ -40,6 +40,11 @@ object Syntax:
     case Box(ty: IRType, expr: Expr)
     case Unbox(ty: IRType, expr: Expr)
     case Con(name: Name, ty: IRType, args: List[(Expr, IRType)])
+    case Case(
+        scrut: Expr,
+        ty: IRType,
+        cases: List[(Name, List[IRType], Expr)]
+    )
 
     def globals: Set[Name] = this match
       case Local(_) => Set.empty
@@ -63,6 +68,10 @@ object Syntax:
       case Unbox(_, e)        => e.globals
       case Con(_, _, as) =>
         as.map(_._1).foldLeft(Set.empty[Name])((s, e) => s ++ e.globals)
+      case Case(t, _, cs) =>
+        t.globals ++ cs
+          .map((_, _, e) => e.globals)
+          .foldLeft(Set.empty[Name])((s, e) => s ++ e)
 
   export Expr.*
 

@@ -42,7 +42,10 @@ object Typechecking:
     case C.Let(x, t, v, b)     => C.Let(x, zonk(t), zonk(v), zonk(b))
     case C.If(c, a, b)         => C.If(zonk(c), zonk(a), zonk(b))
     case C.BinopExpr(op, a, b) => C.BinopExpr(op, zonk(a), zonk(b))
-    case t                     => t
+    case C.Con(x, t, as)       => C.Con(x, zonk(t), as.map(zonk))
+    case C.Case(x, t, cs) =>
+      C.Case(x, zonk(t), cs.map((x, ps, b) => (x, ps, zonk(b))))
+    case t => t
 
   private def occurs(id: C.TMetaId, t: C.Type): Boolean = force(t) match
     case C.TFun(a, b) => occurs(id, a) || occurs(id, b)
@@ -92,7 +95,7 @@ object Typechecking:
     zonk(t)
 
   // contexts
-  private val tglobals: mutable.Map[Name, Unit] = mutable.Map.empty
+  private val tglobals: mutable.Map[Name, List[Name]] = mutable.Map.empty
   private val tcons: mutable.Map[Name, (C.Type, List[C.Type])] =
     mutable.Map.empty
   private val globals: mutable.Map[Name, C.Type] = mutable.Map.empty
@@ -206,6 +209,35 @@ object Typechecking:
         case BMul => (C.BinopExpr(C.BMul, ca, cb), C.TInt)
         case BSub => (C.BinopExpr(C.BSub, ca, cb), C.TInt)
         case BLt  => (C.BinopExpr(C.BLt, ca, cb), C.TBool)
+    case Case(t, cs) =>
+      val (ct, ty) = infer(t)
+      val dtype = force(ty) match
+        case C.TCon(x) => x
+        case ty @ C.TMeta(id) if cs.size > 0 =>
+          val conName = cs.head._1
+          tcons.get(conName) match
+            case Some((dty @ C.TCon(x), _)) => unify(ty, dty); x
+            case _ => throw new Exception(s"cannot case on $t : $ty")
+        case ty => throw new Exception(s"cannot case on $t : $ty")
+      val cons = tglobals(dtype)
+      if Set.from(cons) != Set.from(cs.map(_._1)) then
+        throw new Exception(s"case mismatch $cons vs $cs")
+      var rty: Option[C.Type] = None
+      val ncs = cs.map((x, vs, t) => {
+        val ts = tcons(x)._2
+        if vs.size != ts.size then
+          throw new Exception(s"case parameter arity mismatch: $x")
+        val nctx: Ctx = vs.zip(ts).reverse ++ ctx
+        val ct = rty match
+          case None =>
+            val (ct, rty1) = infer(t)(nctx)
+            rty = Some(rty1)
+            ct
+          case Some(rty) => check(t, rty)(nctx)
+        (x, vs.zip(ts), ct)
+      })
+      val rrty = rty.get
+      (C.Case(ct, rrty, ncs), rrty)
     case Hole => throw new Exception("cannot infer a hole")
 
   def typecheck(e: Expr): (C.Expr, C.Type) =
@@ -253,7 +285,7 @@ object Typechecking:
       case DData(x, cs) =>
         if tglobals.contains(x) then
           throw new Exception(s"duplicate data definition $x")
-        tglobals += x -> ()
+        tglobals += x -> cs.map(_._1)
         val cs1 = cs.map((cx, as) => {
           if tcons.contains(cx) then
             throw new Exception(s"duplicate constructor definition $cx in $x")

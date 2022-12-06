@@ -19,6 +19,8 @@ import java.io.BufferedOutputStream
 import java.io.FileOutputStream
 
 object JvmGenerator:
+  private val tcons: mutable.Map[Name, Type] = mutable.Map.empty
+
   final case class Ctx(
       moduleName: Name,
       arities: Map[Name, Arity],
@@ -229,6 +231,10 @@ object JvmGenerator:
       case Box(_, e)     => !isRecursive(x, e)
       case Unbox(_, e)   => !isRecursive(x, e)
       case Con(_, _, as) => !as.exists((e, _) => isRecursive(x, e))
+      case Case(t, _, cs) =>
+        !isRecursive(x, t) && cs.forall((_, _, b) =>
+          isTailRecursive(x, arity, rs, b)
+        )
 
   private def isRecursive(x: Name, e: Expr): Boolean = e match
     case IntLit(_)  => false
@@ -245,6 +251,8 @@ object JvmGenerator:
     case Box(_, e)     => isRecursive(x, e)
     case Unbox(_, e)   => isRecursive(x, e)
     case Con(_, _, as) => as.exists((e, _) => isRecursive(x, e))
+    case Case(t, _, cs) =>
+      isRecursive(x, t) || cs.exists((_, _, b) => isRecursive(x, b))
 
   private def constantValue(e: Expr): Option[Any] = e match
     case IntLit(v)  => Some(v)
@@ -350,6 +358,7 @@ object JvmGenerator:
       superName,
       null
     )
+    tcons += x -> Type.getType(s"L$className;")
     // fields
     as.zipWithIndex.foreach((ty, i) => {
       cw.visitField(
@@ -483,6 +492,27 @@ object JvmGenerator:
             as.map((_, t) => descriptor(t)).toArray
           )
         )
+      case Case(scrut, rt, cs) =>
+        gen(scrut)
+        val lEnd = new Label
+        var lNextCase = new Label
+        // TODO: handle empty ADTs
+        cs.init.foreach { (c, ts, b) =>
+          val contype = tcons(c)
+          mg.visitLabel(lNextCase)
+          lNextCase = new Label
+          mg.dup()
+          mg.instanceOf(contype)
+          mg.visitJumpInsn(IFEQ, lNextCase)
+          mg.pop()
+          gen(b) // TODO: introduce fields
+          mg.visitJumpInsn(GOTO, lEnd)
+        }
+        mg.visitLabel(lNextCase)
+        val (_, vs, b) = cs.last
+        mg.pop()
+        gen(b)
+        mg.visitLabel(lEnd)
       case _ => throw new Exception("impossible")
 
   // ASM generates a constructor application, so we override it here

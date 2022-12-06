@@ -46,4 +46,22 @@ object LambdaLifting:
       val (ds1, a1) = lambdaLift(a)
       val (ds2, b1) = lambdaLift(b)
       (ds1 ++ ds2, BinopExpr(op, a1, b1))
+    case Con(x, t, as) =>
+      val (nds, nas) =
+        as.map(lambdaLift).foldLeft[(Defs, List[Expr])]((Nil, Nil)) {
+          case (acc, (ds, e)) => (acc._1 ++ ds, acc._2 ++ List(e))
+        }
+      (nds, Con(x, t, nas))
+    case Case(t, rt, cs) =>
+      val (ds1, t1) = lambdaLift(t)
+      val (nds, ncs) =
+        cs.map((x, vs, e) => {
+          val (nds, e1) = lambdaLift(e)
+          (nds, (x, vs, e1))
+        }).foldLeft[(Defs, List[(Name, List[(Name, Type)], Expr)])](
+          (Nil, Nil)
+        ) { case (acc, (ds, (x, vs, e))) =>
+          (acc._1 ++ ds, acc._2 ++ List((x, vs, e)))
+        }
+      (ds1 ++ nds, Case(t1, rt, ncs))
     case _ => (Nil, e)

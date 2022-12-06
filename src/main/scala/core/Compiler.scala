@@ -115,10 +115,9 @@ object Compiler:
       val (ca, _) = compile(k, a)
       val (cb, _) = compile(k, b)
       (IR.BinopExpr(cop, ca, cb), rty)
-    case IntLit(v)       => (IR.IntLit(v), TInt)
-    case BoolLit(v)      => (IR.BoolLit(v), TBool)
-    case UnitLit         => (IR.UnitLit, TUnit)
-    case Lam(_, _, _, _) => throw new Exception("cannot compile a lambda")
+    case IntLit(v)  => (IR.IntLit(v), TInt)
+    case BoolLit(v) => (IR.BoolLit(v), TBool)
+    case UnitLit    => (IR.UnitLit, TUnit)
     case Con(x, ty, as) =>
       (
         IR.Con(
@@ -131,6 +130,14 @@ object Compiler:
         ),
         ty
       )
+    case Case(t, rty, cs) =>
+      val (ct, _) = compile(k, t)
+      val ccs = cs.map((x, vs, b) => {
+        val (cb, _) = compile(vs.map(_._2).reverse ++ k, b)
+        (x, vs.map((_, t) => compile(t)), cb)
+      })
+      (IR.Case(ct, compile(rty), ccs), rty)
+    case Lam(_, _, _, _) => throw new Exception("cannot compile a lambda")
 
   private def wrapExpr(e: IR.Expr, t1: Type, t2: Type): IR.Expr = (t1, t2) match
     case (TUnit, TVar(_)) => box(t1, e)

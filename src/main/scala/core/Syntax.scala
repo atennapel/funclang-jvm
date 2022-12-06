@@ -50,6 +50,11 @@ object Syntax:
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
     case BinopExpr(op: Binop, left: Expr, right: Expr)
     case Con(name: Name, ty: Type, args: List[Expr])
+    case Case(
+        scrut: Expr,
+        ty: Type,
+        cases: List[(Name, List[(Name, Type)], Expr)]
+    )
 
     override def toString: String = this match
       case Local(ix)           => s"'$ix"
@@ -64,6 +69,8 @@ object Syntax:
       case BinopExpr(op, a, b) => s"($a $op $b)"
       case Con(x, _, Nil)      => x
       case Con(x, _, as)       => s"($x ${as.map(_.toString).mkString(" ")})"
+      case Case(x, t, cs) =>
+        s"(case $x : $t {${cs.map((c, ps, b) => s"$c ${ps.mkString(" ")} -> $b").mkString("; ")}})"
 
     def app(args: List[Expr]): Expr = args.foldLeft(this)(App.apply)
 
@@ -84,6 +91,13 @@ object Syntax:
       case BinopExpr(o, a, b) => a.freeLocals ++ b.freeLocals
       case Con(_, _, as) =>
         as.foldLeft[List[Ix]](Nil)((res, e) => res ++ e.freeLocals)
+      case Case(t, _, cs) =>
+        t.freeLocals ++ cs
+          .map((x, vs, e) => {
+            val arity = vs.size
+            e.freeLocals.filterNot(_ <= arity - 1).map(_ - arity)
+          })
+          .foldLeft[List[Ix]](Nil)((res, e) => res ++ e)
       case _ => Nil
 
     def shift(d: Int, c: Ix): Expr = this match
@@ -95,7 +109,13 @@ object Syntax:
         If(cond.shift(d, c), t.shift(d, c), f.shift(d, c))
       case BinopExpr(op, l, r) => BinopExpr(op, l.shift(d, c), r.shift(d, c))
       case Con(x, ty, as)      => Con(x, ty, as.map(_.shift(d, c)))
-      case _                   => this
+      case Case(t, ty, cs) =>
+        Case(
+          t.shift(d, c),
+          ty,
+          cs.map((x, vs, e) => (x, vs, e.shift(d, c + vs.size)))
+        )
+      case _ => this
 
     def subst(j: Ix, s: Expr): Expr = this match
       case Local(k) if k == j => s
@@ -107,7 +127,15 @@ object Syntax:
         If(cond.subst(j, s), t.subst(j, s), f.subst(j, s))
       case BinopExpr(op, l, r) => BinopExpr(op, l.subst(j, s), r.subst(j, s))
       case Con(x, ty, as)      => Con(x, ty, as.map(_.subst(j, s)))
-      case _                   => this
+      case Case(t, ty, cs) =>
+        Case(
+          t.subst(j, s),
+          ty,
+          cs.map((x, vs, e) =>
+            (x, vs, e.subst(j + vs.size, s.shift(vs.size, 0)))
+          )
+        )
+      case _ => this
 
     def psubst(sub: Map[Ix, Expr]): Expr = this match
       case Local(k) => sub.get(k).getOrElse(this)
@@ -125,7 +153,19 @@ object Syntax:
         If(cond.psubst(sub), t.psubst(sub), f.psubst(sub))
       case BinopExpr(op, l, r) => BinopExpr(op, l.psubst(sub), r.psubst(sub))
       case Con(x, ty, as)      => Con(x, ty, as.map(_.psubst(sub)))
-      case _                   => this
+      case Case(t, ty, cs) =>
+        Case(
+          t.psubst(sub),
+          ty,
+          cs.map((x, vs, e) =>
+            (
+              x,
+              vs,
+              e.psubst(sub.map((j, s) => (j + vs.size) -> s.shift(vs.size, 0)))
+            )
+          )
+        )
+      case _ => this
 
     def beta(arg: Expr): Expr = this match
       case Lam(x, t, rt, b) => b.subst(0, arg.shift(1, 0)).shift(-1, 0)
