@@ -36,7 +36,7 @@ TODO:
 - [ ] Algebraic data types
   - [x] Types
   - [x] Constructors
-  - [ ] Elimination
+  - [x] Elimination
   - [ ] Otherwise case
   - [ ] Parameterized datatypes
   - [ ] Optimize arguments-less constructors

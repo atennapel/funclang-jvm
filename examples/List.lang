@@ -1,0 +1,21 @@
+data List
+  | Nil
+  | Cons Int List;
+
+head : Int -> List -> Int;
+head def l =
+  case l {
+    Nil -> def;
+    Cons hd tl -> hd;
+  };
+
+map : (Int -> Int) -> List -> List;
+map f l =
+  case l {
+    Nil -> Nil;
+    Cons hd tl -> Cons (f hd) (map f tl);
+  };
+
+inc x = x + 1;
+
+main () = head 0 (map inc (Cons 1 (Cons 2 Nil)));

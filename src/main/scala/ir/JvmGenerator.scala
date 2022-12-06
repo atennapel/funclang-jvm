@@ -504,14 +504,41 @@ object JvmGenerator:
           mg.dup()
           mg.instanceOf(contype)
           mg.visitJumpInsn(IFEQ, lNextCase)
+          if ts.nonEmpty then mg.checkCast(contype)
+          var mctx2: MethodCtx = mctx
+          ts.zipWithIndex.foreach((ty, i) => {
+            val desc = descriptor(ty)
+            val local = mg.newLocal(desc)
+            mg.dup()
+            mg.getField(contype, s"a$i", desc)
+            mg.storeLocal(local)
+            mctx2 = mctx2.copy(
+              lvl = mctx2.lvl + 1,
+              locals = mctx2.locals + (mctx2.lvl -> local)
+            )
+          })
           mg.pop()
-          gen(b) // TODO: introduce fields
+          gen(b)(ctx, mctx2, cw, mg, lMethodStart)
           mg.visitJumpInsn(GOTO, lEnd)
         }
         mg.visitLabel(lNextCase)
-        val (_, vs, b) = cs.last
+        val (c, ts, b) = cs.last
+        val contype = tcons(c)
+        if ts.nonEmpty then mg.checkCast(contype)
+        var mctx2: MethodCtx = mctx
+        ts.zipWithIndex.foreach((ty, i) => {
+          val desc = descriptor(ty)
+          val local = mg.newLocal(desc)
+          mg.dup()
+          mg.getField(contype, s"a$i", desc)
+          mg.storeLocal(local)
+          mctx2 = mctx2.copy(
+            lvl = mctx2.lvl + 1,
+            locals = mctx2.locals + (mctx2.lvl -> local)
+          )
+        })
         mg.pop()
-        gen(b)
+        gen(b)(ctx, mctx2, cw, mg, lMethodStart)
         mg.visitLabel(lEnd)
       case _ => throw new Exception("impossible")
 
