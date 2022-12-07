@@ -49,7 +49,7 @@ object Compiler:
     case TUnit      => IR.TUnit
     case TFun(_, _) => IR.TFun
     case TVar(_)    => IR.TPoly
-    case TCon(x)    => IR.TCon(x)
+    case TCon(x, _) => IR.TCon(x)
     case TMeta(id)  => throw new Exception(s"cannot compile type meta ?$id")
 
   // precondition: d is closure-converted and lambda-lifted
@@ -118,23 +118,25 @@ object Compiler:
     case IntLit(v)  => (IR.IntLit(v), TInt)
     case BoolLit(v) => (IR.BoolLit(v), TBool)
     case UnitLit    => (IR.UnitLit, TUnit)
-    case Con(x, ty, as) =>
+    case Con(x, ty, tas, as) =>
       (
         IR.Con(
           x,
           compile(ty),
-          as.map(e => {
-            val (ce, t) = compile(k, e)
-            (ce, compile(t))
-          })
+          tas
+            .zip(as)
+            .map((et, e) => {
+              val (ce, t) = compile(k, e)
+              (wrapExpr(ce, t, et), compile(et))
+            })
         ),
         ty
       )
     case Case(t, rty, cs) =>
       val (ct, _) = compile(k, t)
       val ccs = cs.map((x, vs, b) => {
-        val (cb, _) = compile(vs.map(_._2).reverse ++ k, b)
-        (x, vs.map((_, t) => compile(t)), cb)
+        val (cb, _) = compile(vs.map(_._2._2).reverse ++ k, b)
+        (x, vs.map { case (_, (t1, t2)) => (compile(t1), compile(t2)) }, cb)
       })
       (IR.Case(ct, compile(rty), ccs), rty)
     case Lam(_, _, _, _) => throw new Exception("cannot compile a lambda")
@@ -151,7 +153,7 @@ object Compiler:
   private def box(t: Type, e: IR.Expr): IR.Expr = t match
     case TFun(_, _) => e
     case TVar(_)    => e
-    case TCon(_)    => e
+    case TCon(_, _) => e
     case t =>
       val ct = compile(t)
       e match
@@ -162,7 +164,7 @@ object Compiler:
   private def unbox(t: Type, e: IR.Expr): IR.Expr = t match
     case TFun(_, _) => e
     case TVar(_)    => e
-    case TCon(_)    => e
+    case TCon(_, _) => e
     case t =>
       val ct = compile(t)
       e match

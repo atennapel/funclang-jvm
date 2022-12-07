@@ -86,14 +86,22 @@ object Parser:
       ) #> TUnit <|> ("(" *> ty <* ")") <|> "Int" #> TInt <|> "Bool" #> TBool <|>
         "_" #> THole <|>
         attempt(
-          identOrOp.flatMap(x =>
-            if x.head.isUpper then pure(TCon(x)) else empty
+          ident.flatMap(x =>
+            if x.head.isUpper then pure(TCon(x, Nil)) else empty
           )
         ) <|>
         ident.map(TVar.apply)
 
+    lazy val tyApp: Parsley[Type] =
+      (tyAtom <~> many(tyAtom)).flatMap((f, as) => {
+        f match
+          case TCon(x, as1)    => pure(TCon(x, as1 ++ as))
+          case t if as.isEmpty => pure(t)
+          case _               => empty
+      })
+
     lazy val ty: Parsley[Type] =
-      precedence[Type](tyAtom)(Ops(InfixR)("->" #> ((l, r) => TFun(l, r))))
+      precedence[Type](tyApp)(Ops(InfixR)("->" #> ((l, r) => TFun(l, r))))
 
     private lazy val atom: Parsley[Expr] =
       attempt("(" <~> ")") #> UnitLit <|>

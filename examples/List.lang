@@ -1,15 +1,15 @@
-data List
+data List t
   | Nil
-  | Cons Int List;
+  | Cons t (List t);
 
-head : Int -> List -> Int;
+head : t -> List t -> t;
 head def l =
   case l {
     Nil -> def;
     Cons hd tl -> hd;
   };
 
-map : (Int -> Int) -> List -> List;
+map : (a -> b) -> List a -> List b;
 map f l =
   case l {
     Nil -> Nil;

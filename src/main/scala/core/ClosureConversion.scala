@@ -32,11 +32,20 @@ object ClosureConversion:
       If(closureConvert(k, c), closureConvert(k, a), closureConvert(k, b))
     case BinopExpr(op, a, b) =>
       BinopExpr(op, closureConvert(k, a), closureConvert(k, b))
-    case Con(x, t, as) => Con(x, t, as.map(closureConvert(k, _)))
+    case Con(x, t, tas, as) => Con(x, t, tas, as.map(closureConvert(k, _)))
     case Case(t, rt, cs) =>
       Case(
         closureConvert(k, t),
         rt,
-        cs.map((x, vs, e) => (x, vs, closureConvert(vs.reverse ++ k, e)))
+        cs.map((x, vs, e) =>
+          (
+            x,
+            vs,
+            closureConvert(
+              vs.map { case (x, (t1, t2)) => (x, t2) }.reverse ++ k,
+              e
+            )
+          )
+        )
       )
     case _ => e

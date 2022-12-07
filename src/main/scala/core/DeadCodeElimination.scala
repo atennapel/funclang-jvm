@@ -21,7 +21,7 @@ object DeadCodeElimination:
       If(eliminateDeadCode(c), eliminateDeadCode(a), eliminateDeadCode(b))
     case BinopExpr(op, a, b) =>
       BinopExpr(op, eliminateDeadCode(a), eliminateDeadCode(b))
-    case Con(x, t, as) => Con(x, t, as.map(eliminateDeadCode))
+    case Con(x, t, tas, as) => Con(x, t, tas, as.map(eliminateDeadCode))
     case Case(t, rt, cs) =>
       Case(
         eliminateDeadCode(t),

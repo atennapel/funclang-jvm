@@ -511,17 +511,21 @@ object JvmGenerator:
           mg.visitJumpInsn(IFEQ, lNextCase)
           if ts.nonEmpty then mg.checkCast(contype)
           var mctx2: MethodCtx = mctx
-          ts.zipWithIndex.foreach((ty, i) => {
-            val desc = descriptor(ty)
-            val local = mg.newLocal(desc)
-            mg.dup()
-            mg.getField(contype, s"a$i", desc)
-            mg.storeLocal(local)
-            mctx2 = mctx2.copy(
-              lvl = mctx2.lvl + 1,
-              locals = mctx2.locals + (mctx2.lvl -> local)
-            )
-          })
+          ts.zipWithIndex.foreach {
+            case ((t1, t2), i) => {
+              val desc1 = descriptor(t1)
+              val desc2 = descriptor(t2)
+              val local = mg.newLocal(desc2)
+              mg.dup()
+              mg.getField(contype, s"a$i", desc1)
+              mg.unbox(desc2)
+              mg.storeLocal(local)
+              mctx2 = mctx2.copy(
+                lvl = mctx2.lvl + 1,
+                locals = mctx2.locals + (mctx2.lvl -> local)
+              )
+            }
+          }
           mg.pop()
           gen(b)(ctx, mctx2, cw, mg, lMethodStart)
           mg.visitJumpInsn(GOTO, lEnd)
@@ -535,17 +539,21 @@ object JvmGenerator:
           ) // if c is not found, then we are in the otherwise case
         if ts.nonEmpty then mg.checkCast(contype)
         var mctx2: MethodCtx = mctx
-        ts.zipWithIndex.foreach((ty, i) => {
-          val desc = descriptor(ty)
-          val local = mg.newLocal(desc)
-          mg.dup()
-          mg.getField(contype, s"a$i", desc)
-          mg.storeLocal(local)
-          mctx2 = mctx2.copy(
-            lvl = mctx2.lvl + 1,
-            locals = mctx2.locals + (mctx2.lvl -> local)
-          )
-        })
+        ts.zipWithIndex.foreach {
+          case ((t1, t2), i) => {
+            val desc1 = descriptor(t1)
+            val desc2 = descriptor(t2)
+            val local = mg.newLocal(desc2)
+            mg.dup()
+            mg.getField(contype, s"a$i", desc1)
+            mg.unbox(desc2)
+            mg.storeLocal(local)
+            mctx2 = mctx2.copy(
+              lvl = mctx2.lvl + 1,
+              locals = mctx2.locals + (mctx2.lvl -> local)
+            )
+          }
+        }
         mg.pop()
         gen(b)(ctx, mctx2, cw, mg, lMethodStart)
         mg.visitLabel(lEnd)

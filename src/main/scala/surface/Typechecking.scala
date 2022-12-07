@@ -33,8 +33,9 @@ object Typechecking:
     case _ => t
 
   private def zonk(t: C.Type): C.Type = force(t) match
-    case C.TFun(a, b) => C.TFun(zonk(a), zonk(b))
-    case t            => t
+    case C.TFun(a, b)  => C.TFun(zonk(a), zonk(b))
+    case C.TCon(x, as) => C.TCon(x, as.map(zonk))
+    case t             => t
 
   private def zonk(t: C.Expr): C.Expr = t match
     case C.App(fn, arg)        => C.App(zonk(fn), zonk(arg))
@@ -42,36 +43,40 @@ object Typechecking:
     case C.Let(x, t, v, b)     => C.Let(x, zonk(t), zonk(v), zonk(b))
     case C.If(c, a, b)         => C.If(zonk(c), zonk(a), zonk(b))
     case C.BinopExpr(op, a, b) => C.BinopExpr(op, zonk(a), zonk(b))
-    case C.Con(x, t, as)       => C.Con(x, zonk(t), as.map(zonk))
+    case C.Con(x, t, tas, as)  => C.Con(x, zonk(t), tas.map(zonk), as.map(zonk))
     case C.Case(x, t, cs) =>
       C.Case(x, zonk(t), cs.map((x, ps, b) => (x, ps, zonk(b))))
     case t => t
 
   private def occurs(id: C.TMetaId, t: C.Type): Boolean = force(t) match
-    case C.TFun(a, b) => occurs(id, a) || occurs(id, b)
-    case C.TMeta(id2) => id == id2
-    case _            => false
+    case C.TFun(a, b)  => occurs(id, a) || occurs(id, b)
+    case C.TCon(_, as) => as.exists(occurs(id, _))
+    case C.TMeta(id2)  => id == id2
+    case _             => false
 
   private def solve(id: C.TMetaId, t: C.Type): Unit =
     if occurs(id, t) then throw new Exception(s"occurs check failed ?$id := $t")
     tmetas(id) = Solved(t)
 
-  private def unify(a: C.Type, b: C.Type): Unit = (force(a), force(b)) match
-    case (C.TUnit, C.TUnit)               => ()
-    case (C.TBool, C.TBool)               => ()
-    case (C.TInt, C.TInt)                 => ()
-    case (C.TVar(x), C.TVar(y)) if x == y => ()
-    case (C.TCon(x), C.TCon(y)) if x == y => ()
-    case (C.TFun(t1, t2), C.TFun(t3, t4)) => unify(t1, t3); unify(t2, t4)
-    case (C.TMeta(id), t)                 => solve(id, t)
-    case (t, C.TMeta(id))                 => solve(id, t)
-    case (a, b) => throw new Exception(s"cannot unify $a ~ $b")
+  private def unify(a: C.Type, b: C.Type): Unit =
+    // println(s"unify ${force(a)} ~ ${force(b)}")
+    (force(a), force(b)) match
+      case (C.TUnit, C.TUnit)               => ()
+      case (C.TBool, C.TBool)               => ()
+      case (C.TInt, C.TInt)                 => ()
+      case (C.TVar(x), C.TVar(y)) if x == y => ()
+      case (C.TCon(x, as1), C.TCon(y, as2)) if x == y && as1.size == as2.size =>
+        as1.zip(as2).foreach(unify)
+      case (C.TFun(t1, t2), C.TFun(t3, t4)) => unify(t1, t3); unify(t2, t4)
+      case (C.TMeta(id), t)                 => solve(id, t)
+      case (t, C.TMeta(id))                 => solve(id, t)
+      case (a, b) => throw new Exception(s"cannot unify $a ~ $b")
 
   // polymorphism
   private def inst(
       t: C.Type,
       map: mutable.Map[Name, C.Type] = mutable.Map.empty
-  ): C.Type = t match
+  ): C.Type = force(t) match
     case C.TVar(x) =>
       map.get(x) match
         case Some(t) => t
@@ -80,12 +85,14 @@ object Typechecking:
           map += x -> m
           m
     case C.TFun(t1, t2) => C.TFun(inst(t1, map), inst(t2, map))
+    case C.TCon(x, as)  => C.TCon(x, as.map(inst(_, map)))
     case t              => t
 
   private def freeTMetas(t: C.Type, tms: mutable.ArrayBuffer[C.TMetaId]): Unit =
     force(t) match
       case C.TMeta(id)    => if !tms.contains(id) then tms += id
       case C.TFun(t1, t2) => freeTMetas(t1, tms); freeTMetas(t2, tms)
+      case C.TCon(_, as)  => as.foreach(freeTMetas(_, tms))
       case _              => ()
 
   private def gen(t: C.Type): C.Type =
@@ -95,7 +102,8 @@ object Typechecking:
     zonk(t)
 
   // contexts
-  private val tglobals: mutable.Map[Name, List[Name]] = mutable.Map.empty
+  private val tglobals: mutable.Map[Name, (List[Name], List[Name])] =
+    mutable.Map.empty
   private val tcons: mutable.Map[Name, (C.Type, List[C.Type])] =
     mutable.Map.empty
   private val globals: mutable.Map[Name, C.Type] = mutable.Map.empty
@@ -111,12 +119,17 @@ object Typechecking:
 
   // type checking
   private def checkType(t: Type)(implicit ctx: Ctx): C.Type = t match
-    case TUnit                           => C.TUnit
-    case TBool                           => C.TBool
-    case TInt                            => C.TInt
-    case TVar(x)                         => C.TVar(x)
-    case TCon(x) if tglobals.contains(x) => C.TCon(x)
-    case TCon(x)    => throw new Exception(s"undefined type constructor $x")
+    case TUnit   => C.TUnit
+    case TBool   => C.TBool
+    case TInt    => C.TInt
+    case TVar(x) => C.TVar(x)
+    case TCon(x, as) =>
+      tglobals.get(x) match
+        case None => throw new Exception(s"undefined type constructor $x")
+        case Some((tvs, _)) =>
+          if tvs.size != as.size then
+            throw new Exception(s"type arity mismatch $x")
+          C.TCon(x, as.map(checkType))
     case TFun(a, b) => C.TFun(checkType(a), checkType(b))
     case THole      => freshTMeta()
 
@@ -132,6 +145,7 @@ object Typechecking:
       (cc, ct)
 
   private def check(e: Expr, ty: C.Type)(implicit ctx: Ctx): C.Expr =
+    // println(s"check $e : ${force(ty)}")
     (e, force(ty)) match
       case (Lam(x, t, b), C.TFun(t1, t2)) =>
         t.foreach(t => {
@@ -155,106 +169,120 @@ object Typechecking:
         unify(ct, ty)
         ce
 
-  private def infer(e: Expr)(implicit ctx: Ctx): (C.Expr, C.Type) = e match
-    case UnitLit    => (C.UnitLit, C.TUnit)
-    case BoolLit(v) => (C.BoolLit(v), C.TBool)
-    case IntLit(v)  => (C.IntLit(v), C.TInt)
-    case Var(x) if x.head.isUpper =>
-      tcons.get(x) match
-        case None => throw new Exception(s"undefined constructor $x")
-        case Some((ty, as)) =>
-          (
-            C.Con(x, ty, (0 until as.size).reverse.map(i => C.Local(i)).toList)
-              .lams(as.zipWithIndex.map((t, i) => (s"a$i", t)), ty),
-            as.foldRight(ty)((a, rt) => C.TFun(a, rt))
-          )
-    case Var(x) =>
-      lookup(x) match
-        case Some((i, t)) => (C.Local(i), t)
-        case None =>
-          globals.get(x) match
-            case None =>
-              throw new Exception(s"undefined local or global variable $x")
-            case Some(t) => (C.Global(x), inst(t))
-    case If(c, a, b) =>
-      val cc = check(c, C.TBool)
-      val (ca, ct) = infer(a)
-      val cb = check(b, ct)
-      (C.If(cc, ca, cb), ct)
-    case Let(x, t, v, b) =>
-      val (cv, ct) = checkValue(v, t)
-      val (cb, crt) = infer(b)((x -> ct) :: ctx)
-      (C.Let(x, ct, cv, cb), crt)
-    case App(f, a) =>
-      val (cf, cft) = infer(f)
-      force(cft) match
-        case C.TFun(t1, t2) =>
-          val ca = check(a, t1)
-          (C.App(cf, ca), t2)
-        case ty =>
-          val ta = freshTMeta()
-          val tb = freshTMeta()
-          unify(ty, C.TFun(ta, tb))
-          val ca = check(a, ta)
-          (C.App(cf, ca), tb)
-    case Lam(x, t, b) =>
-      val ct = t.fold(freshTMeta())(checkType)
-      val (cb, crt) = infer(b)((x -> ct) :: ctx)
-      (C.Lam(x, ct, crt, cb), C.TFun(ct, crt))
-    case BinopExpr(op, a, b) =>
-      val ca = check(a, C.TInt)
-      val cb = check(b, C.TInt)
-      op match
-        case BAdd => (C.BinopExpr(C.BAdd, ca, cb), C.TInt)
-        case BMul => (C.BinopExpr(C.BMul, ca, cb), C.TInt)
-        case BSub => (C.BinopExpr(C.BSub, ca, cb), C.TInt)
-        case BLt  => (C.BinopExpr(C.BLt, ca, cb), C.TBool)
-    case Case(t, cs) =>
-      val (ct, ty) = infer(t)
-      val dtype = force(ty) match
-        case C.TCon(x) => x
-        case ty @ C.TMeta(id) if cs.size > 0 =>
-          val conName = cs.head._1
-          tcons.get(conName) match
-            case Some((dty @ C.TCon(x), _)) => unify(ty, dty); x
-            case _ => throw new Exception(s"cannot case on $t : $ty")
-        case ty => throw new Exception(s"cannot case on $t : $ty")
-      val cons = tglobals(dtype)
-      val usedcons = cs.map(_._1)
-      val hasOtherwise = usedcons.nonEmpty && usedcons.last == "_"
-      if usedcons.nonEmpty && usedcons.init.contains("_") then
-        throw new Exception(s"otherwise case must be last")
-      val usedcons2 = usedcons.filterNot(_ == "_")
-      if !Set.from(usedcons2).subsetOf(Set.from(cons)) then
-        throw new Exception(s"case mismatch $cons vs $cs")
-      var rty: Option[C.Type] = None
-      val ncs = cs.map((x, vs, t) => {
-        if x == "_" then
-          if vs.nonEmpty then
-            throw new Exception(s"otherwise case cannot have parameters: $vs")
-          val ct = rty match
-            case None =>
-              val (ct, rty1) = infer(t)
-              rty = Some(rty1)
-              ct
-            case Some(rty) => check(t, rty)
-          (x, Nil, ct)
-        else
-          val ts = tcons(x)._2
-          if vs.size != ts.size then
-            throw new Exception(s"case parameter arity mismatch: $x")
-          val nctx: Ctx = vs.zip(ts).reverse ++ ctx
-          val ct = rty match
-            case None =>
-              val (ct, rty1) = infer(t)(nctx)
-              rty = Some(rty1)
-              ct
-            case Some(rty) => check(t, rty)(nctx)
-          (x, vs.zip(ts), ct)
-      })
-      val rrty = rty.getOrElse(freshTMeta())
-      (C.Case(ct, rrty, ncs), rrty)
-    case Hole => throw new Exception("cannot infer a hole")
+  private def infer(e: Expr)(implicit ctx: Ctx): (C.Expr, C.Type) =
+    // println(s"infer $e")
+    e match
+      case UnitLit    => (C.UnitLit, C.TUnit)
+      case BoolLit(v) => (C.BoolLit(v), C.TBool)
+      case IntLit(v)  => (C.IntLit(v), C.TInt)
+      case Var(x) if x.head.isUpper =>
+        tcons.get(x) match
+          case None => throw new Exception(s"undefined constructor $x")
+          case Some((ty, as)) =>
+            val m = mutable.Map.empty[Name, C.Type]
+            val ity = inst(ty, m)
+            val ias = as.map(inst(_, m))
+            (
+              C.Con(
+                x,
+                ity,
+                as,
+                (0 until as.size).reverse.map(i => C.Local(i)).toList
+              ).lams(ias.zipWithIndex.map((t, i) => (s"a$i", t)), ity),
+              ias.foldRight(ity)((a, rt) => C.TFun(a, rt))
+            )
+      case Var(x) =>
+        lookup(x) match
+          case Some((i, t)) => (C.Local(i), t)
+          case None =>
+            globals.get(x) match
+              case None =>
+                throw new Exception(s"undefined local or global variable $x")
+              case Some(t) => (C.Global(x), inst(t))
+      case If(c, a, b) =>
+        val cc = check(c, C.TBool)
+        val (ca, ct) = infer(a)
+        val cb = check(b, ct)
+        (C.If(cc, ca, cb), ct)
+      case Let(x, t, v, b) =>
+        val (cv, ct) = checkValue(v, t)
+        val (cb, crt) = infer(b)((x -> ct) :: ctx)
+        (C.Let(x, ct, cv, cb), crt)
+      case App(f, a) =>
+        val (cf, cft) = infer(f)
+        force(cft) match
+          case C.TFun(t1, t2) =>
+            val ca = check(a, t1)
+            (C.App(cf, ca), t2)
+          case ty =>
+            val ta = freshTMeta()
+            val tb = freshTMeta()
+            unify(ty, C.TFun(ta, tb))
+            val ca = check(a, ta)
+            (C.App(cf, ca), tb)
+      case Lam(x, t, b) =>
+        val ct = t.fold(freshTMeta())(checkType)
+        val (cb, crt) = infer(b)((x -> ct) :: ctx)
+        (C.Lam(x, ct, crt, cb), C.TFun(ct, crt))
+      case BinopExpr(op, a, b) =>
+        val ca = check(a, C.TInt)
+        val cb = check(b, C.TInt)
+        op match
+          case BAdd => (C.BinopExpr(C.BAdd, ca, cb), C.TInt)
+          case BMul => (C.BinopExpr(C.BMul, ca, cb), C.TInt)
+          case BSub => (C.BinopExpr(C.BSub, ca, cb), C.TInt)
+          case BLt  => (C.BinopExpr(C.BLt, ca, cb), C.TBool)
+      case Case(t, cs) =>
+        val (ct, ty) = infer(t)
+        val (dtype, sub) = force(ty) match
+          case C.TCon(x, as) =>
+            (x, mutable.Map.from(tglobals(x)._1.zip(as).toMap))
+          case ty @ C.TMeta(id) if cs.size > 0 =>
+            val conName = cs.head._1
+            tcons.get(conName) match
+              case Some((dty @ C.TCon(x, _), _)) =>
+                val m = mutable.Map.empty[Name, C.Type]
+                val idty = inst(dty, m)
+                unify(ty, idty)
+                (x, m)
+              case _ => throw new Exception(s"cannot case on $t : $ty")
+          case ty => throw new Exception(s"cannot case on $t : $ty")
+        val cons = tglobals(dtype)._2
+        val usedcons = cs.map(_._1)
+        val hasOtherwise = usedcons.nonEmpty && usedcons.last == "_"
+        if usedcons.nonEmpty && usedcons.init.contains("_") then
+          throw new Exception(s"otherwise case must be last")
+        val usedcons2 = usedcons.filterNot(_ == "_")
+        if !Set.from(usedcons2).subsetOf(Set.from(cons)) then
+          throw new Exception(s"case mismatch $cons vs $cs")
+        var rty: Option[C.Type] = None
+        val ncs = cs.map((x, vs, t) => {
+          if x == "_" then
+            if vs.nonEmpty then
+              throw new Exception(s"otherwise case cannot have parameters: $vs")
+            val ct = rty match
+              case None =>
+                val (ct, rty1) = infer(t)
+                rty = Some(rty1)
+                ct
+              case Some(rty) => check(t, rty)
+            (x, Nil, ct)
+          else
+            val ts = tcons(x)._2.map(inst(_, sub))
+            if vs.size != ts.size then
+              throw new Exception(s"case parameter arity mismatch: $x")
+            val nctx: Ctx = vs.zip(ts).reverse ++ ctx
+            val ct = rty match
+              case None =>
+                val (ct, rty1) = infer(t)(nctx)
+                rty = Some(rty1)
+                ct
+              case Some(rty) => check(t, rty)(nctx)
+            (x, vs.zip(tcons(x)._2.zip(ts)), ct)
+        })
+        val rrty = rty.getOrElse(freshTMeta())
+        (C.Case(ct, rrty, ncs), rrty)
+      case Hole => throw new Exception("cannot infer a hole")
 
   def typecheck(e: Expr): (C.Expr, C.Type) =
     infer(e)(Nil)
@@ -301,12 +329,13 @@ object Typechecking:
       case DData(x, tvs, cs) =>
         if tglobals.contains(x) then
           throw new Exception(s"duplicate data definition $x")
-        tglobals += x -> cs.map(_._1)
+        tglobals += x -> (tvs, cs.map(_._1))
+        val tcon = C.TCon(x, tvs.map(C.TVar.apply))
         val cs1 = cs.map((cx, as) => {
           if tcons.contains(cx) then
             throw new Exception(s"duplicate constructor definition $cx in $x")
           val as1 = as.map(a => checkType(a)(Nil))
-          tcons += cx -> (C.TCon(x), as1)
+          tcons += cx -> (tcon, as1)
           (cx, as1)
         })
         Some(C.DData(x, cs1))
@@ -328,4 +357,5 @@ object Typechecking:
               }
               .mkString("\n")}"
       )
+    // println(cds)
     cds

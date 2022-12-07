@@ -12,17 +12,18 @@ object Syntax:
     case TInt
     case TFun(param: Type, retrn: Type)
     case TVar(name: Name)
-    case TCon(name: Name)
+    case TCon(name: Name, args: List[Type])
     case TMeta(id: TMetaId)
 
     override def toString: String = this match
-      case TUnit      => "()"
-      case TBool      => "Bool"
-      case TInt       => "Int"
-      case TMeta(id)  => s"?$id"
-      case TVar(x)    => s"$x"
-      case TCon(x)    => s"$x"
-      case TFun(a, b) => s"($a -> $b)"
+      case TUnit        => "()"
+      case TBool        => "Bool"
+      case TInt         => "Int"
+      case TMeta(id)    => s"?$id"
+      case TVar(x)      => s"$x"
+      case TCon(x, Nil) => s"$x"
+      case TCon(x, as)  => s"($x ${as.map(_.toString).mkString(" ")})"
+      case TFun(a, b)   => s"($a -> $b)"
   export Type.*
 
   enum Binop:
@@ -49,11 +50,11 @@ object Syntax:
     case UnitLit
     case If(cond: Expr, ifTrue: Expr, ifFalse: Expr)
     case BinopExpr(op: Binop, left: Expr, right: Expr)
-    case Con(name: Name, ty: Type, args: List[Expr])
+    case Con(name: Name, ty: Type, tas: List[Type], args: List[Expr])
     case Case(
         scrut: Expr,
         ty: Type,
-        cases: List[(Name, List[(Name, Type)], Expr)]
+        cases: List[(Name, List[(Name, (Type, Type))], Expr)]
     )
 
     override def toString: String = this match
@@ -67,8 +68,8 @@ object Syntax:
       case UnitLit             => "()"
       case If(c, a, b)         => s"(if $c then $a else $b)"
       case BinopExpr(op, a, b) => s"($a $op $b)"
-      case Con(x, _, Nil)      => x
-      case Con(x, _, as)       => s"($x ${as.map(_.toString).mkString(" ")})"
+      case Con(x, _, _, Nil)   => x
+      case Con(x, _, _, as)    => s"($x ${as.map(_.toString).mkString(" ")})"
       case Case(x, t, cs) =>
         s"(case $x : $t {${cs.map((c, ps, b) => s"$c ${ps.mkString(" ")} -> $b").mkString("; ")}})"
 
@@ -89,7 +90,7 @@ object Syntax:
       case App(f, a)          => f.freeLocals ++ a.freeLocals
       case If(c, a, b)        => c.freeLocals ++ a.freeLocals ++ b.freeLocals
       case BinopExpr(o, a, b) => a.freeLocals ++ b.freeLocals
-      case Con(_, _, as) =>
+      case Con(_, _, _, as) =>
         as.foldLeft[List[Ix]](Nil)((res, e) => res ++ e.freeLocals)
       case Case(t, _, cs) =>
         t.freeLocals ++ cs
@@ -108,7 +109,7 @@ object Syntax:
       case If(cond, t, f) =>
         If(cond.shift(d, c), t.shift(d, c), f.shift(d, c))
       case BinopExpr(op, l, r) => BinopExpr(op, l.shift(d, c), r.shift(d, c))
-      case Con(x, ty, as)      => Con(x, ty, as.map(_.shift(d, c)))
+      case Con(x, ty, tas, as) => Con(x, ty, tas, as.map(_.shift(d, c)))
       case Case(t, ty, cs) =>
         Case(
           t.shift(d, c),
@@ -126,7 +127,7 @@ object Syntax:
       case If(cond, t, f) =>
         If(cond.subst(j, s), t.subst(j, s), f.subst(j, s))
       case BinopExpr(op, l, r) => BinopExpr(op, l.subst(j, s), r.subst(j, s))
-      case Con(x, ty, as)      => Con(x, ty, as.map(_.subst(j, s)))
+      case Con(x, ty, tas, as) => Con(x, ty, tas, as.map(_.subst(j, s)))
       case Case(t, ty, cs) =>
         Case(
           t.subst(j, s),
@@ -152,7 +153,7 @@ object Syntax:
       case If(cond, t, f) =>
         If(cond.psubst(sub), t.psubst(sub), f.psubst(sub))
       case BinopExpr(op, l, r) => BinopExpr(op, l.psubst(sub), r.psubst(sub))
-      case Con(x, ty, as)      => Con(x, ty, as.map(_.psubst(sub)))
+      case Con(x, ty, tas, as) => Con(x, ty, tas, as.map(_.psubst(sub)))
       case Case(t, ty, cs) =>
         Case(
           t.psubst(sub),

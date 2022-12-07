@@ -43,7 +43,7 @@ object Syntax:
     case Case(
         scrut: Expr,
         ty: IRType,
-        cases: List[(Name, List[IRType], Expr)]
+        cases: List[(Name, List[(IRType, IRType)], Expr)]
     )
 
     def globals: Set[Name] = this match

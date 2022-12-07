@@ -33,14 +33,13 @@ TODO:
   - [x] Allow pre-declaration of definitions
   - [x] Unification and holes
 - [x] Polymorphism
-- [ ] Algebraic data types
+- [x] Algebraic data types
   - [x] Types
   - [x] Constructors
   - [x] Elimination
   - [x] Otherwise case
   - [x] Handle empty type
-  - [ ] Parameterized datatypes
-  - [ ] Optimize arguments-less constructors
+  - [x] Parameterized datatypes
 - [ ] IR code generation improvements
   - [x] Try to eta-expand based on type to reduce closures
   - [x] Beta-reduction
@@ -49,9 +48,12 @@ TODO:
   - [ ] What order do the core steps have to be done in, should they be repeated?
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
+  - [ ] Cache 0-arity constructors
   - [ ] Optimize partial applications
   - [ ] Generate Function for all primitive combinations
   - [ ] Closures with arity
+  - [ ] Tail-call modulo cons
   - [ ] Improve TCO
   - [ ] Optimize ADT representation
   - [ ] Optimize ADT elimination
+  - [ ] Mutual recursion

@@ -8,7 +8,7 @@ object Syntax:
     case TBool
     case TUnit
     case TVar(name: Name)
-    case TCon(name: Name)
+    case TCon(name: Name, args: List[Type])
     case TFun(param: Type, retrn: Type)
     case THole
   export Type.*
