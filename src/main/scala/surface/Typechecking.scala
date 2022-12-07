@@ -221,8 +221,8 @@ object Typechecking:
         case ty => throw new Exception(s"cannot case on $t : $ty")
       val cons = tglobals(dtype)
       val usedcons = cs.map(_._1)
-      val hasOtherwise = usedcons.last == "_"
-      if usedcons.init.contains("_") then
+      val hasOtherwise = usedcons.nonEmpty && usedcons.last == "_"
+      if usedcons.nonEmpty && usedcons.init.contains("_") then
         throw new Exception(s"otherwise case must be last")
       val usedcons2 = usedcons.filterNot(_ == "_")
       if !Set.from(usedcons2).subsetOf(Set.from(cons)) then
@@ -252,7 +252,7 @@ object Typechecking:
             case Some(rty) => check(t, rty)(nctx)
           (x, vs.zip(ts), ct)
       })
-      val rrty = rty.get
+      val rrty = rty.getOrElse(freshTMeta())
       (C.Case(ct, rrty, ncs), rrty)
     case Hole => throw new Exception("cannot infer a hole")
 

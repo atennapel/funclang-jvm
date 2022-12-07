@@ -492,11 +492,16 @@ object JvmGenerator:
             as.map((_, t) => descriptor(t)).toArray
           )
         )
+      case Case(scrut, rt, cs) if cs.isEmpty =>
+        rt match
+          case TBool => mg.push(false)
+          case TInt  => mg.push(0)
+          case TUnit => mg.push(false)
+          case _     => mg.visitInsn(ACONST_NULL)
       case Case(scrut, rt, cs) =>
         gen(scrut)
         val lEnd = new Label
         var lNextCase = new Label
-        // TODO: handle empty ADTs
         cs.init.foreach { (c, ts, b) =>
           val contype = tcons(c)
           mg.visitLabel(lNextCase)
