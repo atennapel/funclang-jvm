@@ -220,21 +220,37 @@ object Typechecking:
             case _ => throw new Exception(s"cannot case on $t : $ty")
         case ty => throw new Exception(s"cannot case on $t : $ty")
       val cons = tglobals(dtype)
-      if Set.from(cons) != Set.from(cs.map(_._1)) then
+      val usedcons = cs.map(_._1)
+      val hasOtherwise = usedcons.last == "_"
+      if usedcons.init.contains("_") then
+        throw new Exception(s"otherwise case must be last")
+      val usedcons2 = usedcons.filterNot(_ == "_")
+      if !Set.from(usedcons2).subsetOf(Set.from(cons)) then
         throw new Exception(s"case mismatch $cons vs $cs")
       var rty: Option[C.Type] = None
       val ncs = cs.map((x, vs, t) => {
-        val ts = tcons(x)._2
-        if vs.size != ts.size then
-          throw new Exception(s"case parameter arity mismatch: $x")
-        val nctx: Ctx = vs.zip(ts).reverse ++ ctx
-        val ct = rty match
-          case None =>
-            val (ct, rty1) = infer(t)(nctx)
-            rty = Some(rty1)
-            ct
-          case Some(rty) => check(t, rty)(nctx)
-        (x, vs.zip(ts), ct)
+        if x == "_" then
+          if vs.nonEmpty then
+            throw new Exception(s"otherwise case cannot have parameters: $vs")
+          val ct = rty match
+            case None =>
+              val (ct, rty1) = infer(t)
+              rty = Some(rty1)
+              ct
+            case Some(rty) => check(t, rty)
+          (x, Nil, ct)
+        else
+          val ts = tcons(x)._2
+          if vs.size != ts.size then
+            throw new Exception(s"case parameter arity mismatch: $x")
+          val nctx: Ctx = vs.zip(ts).reverse ++ ctx
+          val ct = rty match
+            case None =>
+              val (ct, rty1) = infer(t)(nctx)
+              rty = Some(rty1)
+              ct
+            case Some(rty) => check(t, rty)(nctx)
+          (x, vs.zip(ts), ct)
       })
       val rrty = rty.get
       (C.Case(ct, rrty, ncs), rrty)
@@ -245,8 +261,8 @@ object Typechecking:
 
   def typecheck(d: Def): Option[C.Def] =
     d match
-      case DDecl(_, _) => None
-      case DData(_, _) => None
+      case DDecl(_, _)    => None
+      case DData(_, _, _) => None
       case DDef("main", _, b) =>
         val cty = globals("main")
         val ctm = check(b, cty)(Nil)
@@ -282,7 +298,7 @@ object Typechecking:
           case None     => globals += (x -> ct.getOrElse(freshTMeta()))
           case Some(ty) => ct.foreach(unify(_, ty))
         None
-      case DData(x, cs) =>
+      case DData(x, tvs, cs) =>
         if tglobals.contains(x) then
           throw new Exception(s"duplicate data definition $x")
         tglobals += x -> cs.map(_._1)

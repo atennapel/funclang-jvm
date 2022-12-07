@@ -37,7 +37,8 @@ TODO:
   - [x] Types
   - [x] Constructors
   - [x] Elimination
-  - [ ] Otherwise case
+  - [x] Otherwise case
+  - [ ] Handle 0-arity constructors
   - [ ] Parameterized datatypes
   - [ ] Optimize arguments-less constructors
 - [ ] IR code generation improvements

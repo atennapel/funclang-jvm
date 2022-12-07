@@ -37,7 +37,7 @@ object Syntax:
   enum Def:
     case DDef(name: Name, ty: Option[Type], value: Expr)
     case DDecl(name: Name, ty: Type)
-    case DData(name: Name, cons: List[(Name, List[Type])])
+    case DData(name: Name, params: List[Name], cons: List[(Name, List[Type])])
   export Def.*
 
   type Defs = List[Def]

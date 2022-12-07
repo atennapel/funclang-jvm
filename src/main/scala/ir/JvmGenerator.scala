@@ -523,7 +523,11 @@ object JvmGenerator:
         }
         mg.visitLabel(lNextCase)
         val (c, ts, b) = cs.last
-        val contype = tcons(c)
+        val contype = tcons
+          .get(c)
+          .getOrElse(
+            null
+          ) // if c is not found, then we are in the otherwise case
         if ts.nonEmpty then mg.checkCast(contype)
         var mctx2: MethodCtx = mctx
         ts.zipWithIndex.foreach((ty, i) => {

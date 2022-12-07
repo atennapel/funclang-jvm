@@ -156,8 +156,9 @@ object Parser:
         .map((t, cs) => Case(t, cs))
 
     private lazy val casePart: Parsley[(Name, List[Name], Expr)] =
-      (identOrOp <~> many(identOrOp) <~> "->" *> tm).map { case ((x, xs), t) =>
-        (x, xs, t)
+      (("_" #> "_" <|> identOrOp) <~> many(identOrOp) <~> "->" *> tm).map {
+        case ((x, xs), t) =>
+          (x, xs, t)
       }
 
     private type DefParam = (List[Name], Option[Type])
@@ -261,7 +262,9 @@ object Parser:
         }
 
     lazy val ddata: Parsley[Def] =
-      ("data" *> identOrOp <~> many("|" *> identOrOp <~> many(tyAtom)))
-        .map { case (x, cons) => DData(x, cons) }
+      ("data" *> identOrOp <~> many(identOrOp) <~> many(
+        "|" *> identOrOp <~> many(tyAtom)
+      ))
+        .map { case ((x, tvs), cons) => DData(x, tvs, cons) }
 
   lazy val parser: Parsley[Defs] = LangLexer.fully(TmParser.defns)
