@@ -43,12 +43,12 @@ TODO:
 - [ ] IR code generation improvements
   - [x] Try to eta-expand based on type to reduce closures
   - [x] Beta-reduction
+  - [x] Cache 0-arity constructors
   - [ ] Inlining
   - [ ] Case commutation
   - [ ] What order do the core steps have to be done in, should they be repeated?
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
-  - [ ] Cache 0-arity constructors
   - [ ] Optimize partial applications
   - [ ] Generate Function for all primitive combinations
   - [ ] Closures with arity

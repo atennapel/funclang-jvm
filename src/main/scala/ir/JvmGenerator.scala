@@ -20,6 +20,7 @@ import java.io.FileOutputStream
 
 object JvmGenerator:
   private val tcons: mutable.Map[Name, Type] = mutable.Map.empty
+  private val tconTypes: mutable.Map[Name, Name] = mutable.Map.empty
 
   final case class Ctx(
       moduleName: Name,
@@ -328,7 +329,36 @@ object JvmGenerator:
             x,
             ACC_PUBLIC + ACC_STATIC + ACC_FINAL
           )
+          if as.isEmpty then
+            datacw.visitField(
+              ACC_PUBLIC + ACC_FINAL + ACC_STATIC,
+              s"$x$$",
+              s"L$className$$$x;",
+              null,
+              null
+            )
         })
+        // 0-ary constructor initialization
+        val m = new Method("<clinit>", Type.VOID_TYPE, Nil.toArray)
+        implicit val stmg: GeneratorAdapter =
+          new GeneratorAdapter(ACC_STATIC, m, null, null, datacw)
+        cs.foreach((x, as) => {
+          if as.isEmpty then
+            val conType = Type.getType(s"L$className$$$x;")
+            stmg.newInstance(conType)
+            stmg.dup()
+            stmg.invokeConstructor(
+              conType,
+              new Method(
+                "<init>",
+                Type.VOID_TYPE,
+                Array.empty
+              )
+            )
+            stmg.putStatic(Type.getType(s"L$className;"), s"$x$$", conType)
+        })
+        stmg.visitInsn(RETURN)
+        stmg.endMethod()
         // done
         datacw.visitEnd()
         cw.visitInnerClass(
@@ -359,6 +389,7 @@ object JvmGenerator:
       null
     )
     tcons += x -> Type.getType(s"L$className;")
+    tconTypes += x -> superName
     // fields
     as.zipWithIndex.foreach((ty, i) => {
       cw.visitField(
@@ -372,7 +403,13 @@ object JvmGenerator:
     // class constructor
     val m = new Method("<init>", Type.VOID_TYPE, as.map(descriptor).toArray)
     val mg: GeneratorAdapter =
-      new GeneratorAdapter(ACC_PUBLIC, m, null, null, cw)
+      new GeneratorAdapter(
+        if as.isEmpty then ACC_PROTECTED else ACC_PUBLIC,
+        m,
+        null,
+        null,
+        cw
+      )
     mg.visitVarInsn(ALOAD, 0)
     mg.visitMethodInsn(
       INVOKESPECIAL,
@@ -479,6 +516,9 @@ object JvmGenerator:
             mg.visitLabel(lEnd)
       case Box(t, a)   => gen(a); box(descriptor(t))
       case Unbox(t, a) => gen(a); mg.unbox(descriptor(t))
+      case Con(x, TCon(y), Nil) =>
+        val conType = Type.getType(s"L${ctx.moduleName}$$$y$$$x;")
+        mg.getStatic(Type.getType(s"L${ctx.moduleName}$$$y;"), s"$x$$", conType)
       case Con(x, TCon(y), as) =>
         val conType = Type.getType(s"L${ctx.moduleName}$$$y$$$x;")
         mg.newInstance(conType)
@@ -507,8 +547,18 @@ object JvmGenerator:
           mg.visitLabel(lNextCase)
           lNextCase = new Label
           mg.dup()
-          mg.instanceOf(contype)
-          mg.visitJumpInsn(IFEQ, lNextCase)
+          if ts.isEmpty then
+            val y = tconTypes(c)
+            val conType = Type.getType(s"L$y$$$c;")
+            mg.getStatic(
+              Type.getType(s"L$y;"),
+              s"$c$$",
+              conType
+            )
+            mg.visitJumpInsn(IF_ACMPNE, lNextCase)
+          else
+            mg.instanceOf(contype)
+            mg.visitJumpInsn(IFEQ, lNextCase)
           if ts.nonEmpty then mg.checkCast(contype)
           var mctx2: MethodCtx = mctx
           ts.zipWithIndex.foreach {
