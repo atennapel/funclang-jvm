@@ -131,8 +131,9 @@ object Compiler:
     case Case(t, rty, cs) =>
       val (ct, _) = compile(k, t)
       val ccs = cs.map((x, vs, b) => {
-        val (cb, _) = compile(vs.map(_._2._2).reverse ++ k, b)
-        (x, vs.map { case (_, (t1, t2)) => (compile(t1), compile(t2)) }, cb)
+        val (cb, ct) = compile(vs.map(_._2._2).reverse ++ k, b)
+        val cb2 = wrapExpr(cb, rty, ct)
+        (x, vs.map { case (_, (t1, t2)) => (compile(t1), compile(t2)) }, cb2)
       })
       (IR.Case(ct, compile(rty), ccs), rty)
     case Lam(_, _, _, _) => throw new Exception("cannot compile a lambda")
