@@ -3,8 +3,7 @@ package core
 import Syntax.*
 import ir.Syntax as IR
 import EtaExpansion.*
-import BetaReduction.*
-import DeadCodeElimination.*
+import simplifier.Simplifier.simplify
 import ClosureConversion.*
 import LambdaLifting.*
 
@@ -21,17 +20,14 @@ object Compiler:
     val dsm3 = etaExpand(ds)
     // println(dsm3.mkString("\n"))
     // println("------------")
-    val dsm2 = betaReduce(dsm3)
-    // println(dsm2.mkString("\n"))
-    // println("------------")
-    val ds0 = eliminateDeadCode(dsm2)
+    val ds0 = simplify(dsm3)
     // println(ds0.mkString("\n"))
     // println("------------")
     val ds1 = closureConvert(ds0)
     // println(ds1.mkString("\n"))
     // println("------------")
-    val ds2 = lambdaLift(ds1)
-    // println(ds2.mkString("\n"))
+    val ds2 = etaExpand(lambdaLift(ds1))
+    println(ds2.mkString("\n"))
     implicit val globals: Globals =
       ds2.flatMap {
         case DDef(x, t, v) => Some(x -> (getArity(v), t)); case _ => None

@@ -44,6 +44,7 @@ TODO:
   - [x] Try to eta-expand based on type to reduce closures
   - [x] Beta-reduction
   - [x] Cache 0-arity constructors
+  - [ ] Eliminate dead definitions
   - [ ] Inlining
   - [ ] Case commutation
   - [ ] What order do the core steps have to be done in, should they be repeated?
