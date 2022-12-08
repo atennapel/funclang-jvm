@@ -168,8 +168,10 @@ object Syntax:
         )
       case _ => this
 
+    def substBody(v: Expr): Expr = this.subst(0, v.shift(1, 0)).shift(-1, 0)
+
     def beta(arg: Expr): Expr = this match
-      case Lam(x, t, rt, b) => b.subst(0, arg.shift(1, 0)).shift(-1, 0)
+      case Lam(x, t, rt, b) => b.substBody(arg)
       case f                => App(f, arg)
 
     def flattenLam: (List[(Name, Type)], Type, Expr) = this match

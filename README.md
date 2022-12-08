@@ -40,14 +40,15 @@ TODO:
   - [x] Otherwise case
   - [x] Handle empty type
   - [x] Parameterized datatypes
+- [ ] Simplifier
+  - [x] Beta-reduction
+  - [x] Dead code elimination
+  - [x] Inlining
+  - [ ] Case/if reduction and constant folding
+  - [ ] Case commutation
 - [ ] IR code generation improvements
   - [x] Try to eta-expand based on type to reduce closures
-  - [x] Beta-reduction
   - [x] Cache 0-arity constructors
-  - [ ] Eliminate dead definitions
-  - [ ] Inlining
-  - [ ] Case commutation
-  - [ ] What order do the core steps have to be done in, should they be repeated?
   - [ ] Optimize unit parameters and returns
   - [ ] Cache curried global
   - [ ] Optimize partial applications
