@@ -7,7 +7,7 @@ object EtaExpansion:
   def etaExpand(ds: Defs): Defs = ds.map(etaExpand)
 
   def etaExpand(d: Def): Def = d match
-    case DDef(x, t, v) =>
+    case DDef(x, refs, t, v) =>
       val (as, rt, b) = v.flattenLam
       val (ps, rt2) = params(t)
       if as.size == ps.size then d
@@ -20,7 +20,7 @@ object EtaExpansion:
           .shift(missing, 0)
           .app((0 until missing).reverse.map(i => Local(i)).toList)
           .lams(as ++ missingparams, rt2)
-        val td = DDef(x, t, tv)
+        val td = DDef(x, refs, t, tv)
         td
     case d => d
 

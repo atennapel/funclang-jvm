@@ -19,9 +19,9 @@ object Simplifier:
       val (ds1, changed) = pipeline(
         ds,
         List(
-          betaReduce,
-          eliminateDeadCode,
-          doInline
+          ("betaReduce", betaReduce),
+          ("eliminateDeadCode", eliminateDeadCode),
+          ("inline", doInline)
         )
       )
       if !changed then ds1
@@ -35,9 +35,10 @@ object Simplifier:
 
   private def pipeline(
       ds: Defs,
-      fs: List[Defs => Option[Defs]]
+      fs: List[(String, Defs => Option[Defs])]
   ): (Defs, Boolean) =
-    fs.foldLeft((ds, false)) { case ((ds, changed), f) =>
+    fs.foldLeft((ds, false)) { case ((ds, changed), (x, f)) =>
       val (ds1, c1) = step(f, ds)
+      if c1 then println(s"changed: $x")
       (ds1, changed || c1)
     }

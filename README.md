@@ -44,7 +44,7 @@ TODO:
   - [x] Beta-reduction
   - [x] Dead code elimination
   - [x] Inlining
-  - [ ] Case/if reduction and constant folding
+  - [x] Case/if reduction and constant folding
   - [ ] Case commutation
 - [ ] IR code generation improvements
   - [x] Try to eta-expand based on type to reduce closures

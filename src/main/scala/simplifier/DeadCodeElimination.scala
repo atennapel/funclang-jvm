@@ -8,8 +8,9 @@ object DeadCodeElimination:
     orL[Def](eliminateDeadCode, ds)
 
   def eliminateDeadCode(d: Def): Option[Def] = d match
-    case DDef(x, t, v) => eliminateDeadCode(v).map(v => DDef(x, t, v))
-    case d             => None
+    case DDef(x, refs, t, v) =>
+      eliminateDeadCode(v).map(v => DDef(x, refs, t, v))
+    case d => None
 
   def eliminateDeadCode(e: Expr): Option[Expr] = e match
     case Let(x, t, v, b) =>

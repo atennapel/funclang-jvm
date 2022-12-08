@@ -101,6 +101,21 @@ object Syntax:
           .foldLeft[List[Ix]](Nil)((res, e) => res ++ e)
       case _ => Nil
 
+    def globals: Set[Name] = this match
+      case Global(x)          => Set(x)
+      case Lam(_, _, _, b)    => b.globals
+      case Let(_, _, v, b)    => v.globals ++ b.globals
+      case App(f, a)          => f.globals ++ a.globals
+      case If(c, a, b)        => c.globals ++ a.globals ++ b.globals
+      case BinopExpr(o, a, b) => a.globals ++ b.globals
+      case Con(_, _, _, as) =>
+        as.foldLeft[Set[Name]](Set.empty)((res, e) => res ++ e.globals)
+      case Case(t, _, cs) =>
+        t.globals ++ cs
+          .map((x, vs, e) => e.globals)
+          .foldLeft[Set[Name]](Set.empty)((res, e) => res ++ e)
+      case _ => Set.empty
+
     def shift(d: Int, c: Ix): Expr = this match
       case Local(k) if k >= c => Local(k + d)
       case Lam(x, t, rt, b)   => Lam(x, t, rt, b.shift(d, c + 1))
@@ -189,11 +204,11 @@ object Syntax:
   export Expr.*
 
   enum Def:
-    case DDef(name: Name, ty: Type, value: Expr)
+    case DDef(name: Name, refs: Set[Name], ty: Type, value: Expr)
     case DData(name: Name, cons: List[(Name, List[Type])])
 
     override def toString: String = this match
-      case DDef(x, t, v) => s"$x : $t = $v"
+      case DDef(x, _, t, v) => s"$x : $t = $v"
       case DData(x, c) =>
         s"data $x | ${c.map((y, as) => s"$y ${as.map(_.toString).mkString(" ")}").mkString(" | ")}"
   export Def.*

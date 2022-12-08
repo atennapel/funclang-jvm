@@ -4,18 +4,18 @@ import core.Syntax.*
 import Util.*
 
 object Inlining:
-  private type Globals = Map[Name, Expr]
+  private type Globals = Map[Name, (Boolean, Expr)]
 
   def doInline(ds: Defs): Option[Defs] =
     implicit val globals: Globals = ds.flatMap {
-      case DDef(x, _, v) => Some(x -> v)
-      case _             => None
+      case DDef(x, refs, _, v) => Some(x -> (refs.contains(x), v))
+      case _                   => None
     }.toMap
     orL[Def](doInline, ds)
 
   def doInline(d: Def)(implicit globals: Globals): Option[Def] = d match
-    case DDef(x, t, v) => doInline(v).map(DDef(x, t, _))
-    case _             => None
+    case DDef(x, refs, t, v) => doInline(v).map(DDef(x, refs, t, _))
+    case _                   => None
 
   def doInline(e: Expr)(implicit globals: Globals): Option[Expr] = e match
     case Let(x, t, v_, b_) =>
@@ -32,7 +32,7 @@ object Inlining:
       else if vc || bc then Some(Let(x, t, v, b))
       else None
     case Global(x) =>
-      val v = globals(x)
+      val v = globals(x)._2
       if isConstant(v) then Some(v)
       else None
     case App(f__, a) =>
@@ -44,8 +44,8 @@ object Inlining:
       val as = aso.getOrElse(as_)
       val asc = aso.isDefined
       f match
-        case Global(x) if globalHeuristic(globals(x), as) =>
-          Some(globals(x).app(as))
+        case Global(x) if globalShouldInline(x, as) =>
+          Some(globals(x)._2.app(as))
         case _ =>
           if fc || asc then Some(f.app(as))
           else None
@@ -75,6 +75,12 @@ object Inlining:
     case Local(_)   => true
     case Global(_)  => true
     case _          => false
+
+  private def globalShouldInline(x: Name, as: List[Expr])(implicit
+      globals: Globals
+  ): Boolean =
+    val (isRecursive, body) = globals(x)
+    !isRecursive && globalHeuristic(body, as)
 
   private def globalHeuristic(e: Expr, as: List[Expr]): Boolean = (e, as) match
     case (Lam(x, t, rt, b), a :: as) =>

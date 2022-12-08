@@ -7,11 +7,11 @@ object LambdaLifting:
   def lambdaLift(ds: Defs): Defs = ds.flatMap(lambdaLift)
 
   def lambdaLift(d: Def): Defs = d match
-    case DDef(x, t, v) =>
+    case DDef(x, refs, t, v) =>
       // note: do not lift top-level lambdas
       val (as, rt, b) = v.flattenLam
       val (ds, b1) = lambdaLift(b)(x)
-      ds ++ List(DDef(x, t, b1.lams(as, rt)))
+      ds ++ List(DDef(x, refs, t, b1.lams(as, rt)))
     case DData(x, cs) => List(d)
 
   def lambdaLift(e: Expr)(implicit topName: Name): (Defs, Expr) = e match
@@ -23,6 +23,7 @@ object LambdaLifting:
       (
         DDef(
           dx,
+          b.globals,
           as.foldRight(rt) { case ((_, pt), rt) => TFun(pt, rt) },
           b.lams(as, rt)
         ) :: ds,

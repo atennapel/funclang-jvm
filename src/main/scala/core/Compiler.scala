@@ -30,7 +30,7 @@ object Compiler:
     println(ds2.mkString("\n"))
     implicit val globals: Globals =
       ds2.flatMap {
-        case DDef(x, t, v) => Some(x -> (getArity(v), t)); case _ => None
+        case DDef(x, _, t, v) => Some(x -> (getArity(v), t)); case _ => None
       }.toMap
     // println(globals)
     ds2.map(compile)
@@ -50,7 +50,7 @@ object Compiler:
 
   // precondition: d is closure-converted and lambda-lifted
   def compile(d: Def)(implicit globals: Globals): IR.Def = d match
-    case DDef(x, ty, v) =>
+    case DDef(x, _, ty, v) =>
       val (as, rt, b) = v.flattenLam
       val ps1 = as.map((x, t) => compile(t))
       val ps2 = if as.isEmpty then None else Some(IR.NEL.of(ps1))

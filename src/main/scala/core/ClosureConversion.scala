@@ -4,9 +4,9 @@ import Syntax.*
 
 object ClosureConversion:
   def closureConvert(d: Def): Def = d match
-    case DDef(x, t, v) =>
+    case DDef(x, refs, t, v) =>
       val v2 = closureConvert(Nil, v)
-      DDef(x, t, v2)
+      DDef(x, refs, t, v2)
     case DData(x, cs) => d
 
   def closureConvert(ds: Defs): Defs =

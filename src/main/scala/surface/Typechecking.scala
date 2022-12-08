@@ -45,7 +45,17 @@ object Typechecking:
     case C.BinopExpr(op, a, b) => C.BinopExpr(op, zonk(a), zonk(b))
     case C.Con(x, t, tas, as)  => C.Con(x, zonk(t), tas.map(zonk), as.map(zonk))
     case C.Case(x, t, cs) =>
-      C.Case(x, zonk(t), cs.map((x, ps, b) => (x, ps, zonk(b))))
+      C.Case(
+        x,
+        zonk(t),
+        cs.map((x, ps, b) =>
+          (
+            x,
+            ps.map { case (x, (t1, t2)) => (x, (zonk(t1), zonk(t2))) },
+            zonk(b)
+          )
+        )
+      )
     case t => t
 
   private def occurs(id: C.TMetaId, t: C.Type): Boolean = force(t) match
@@ -294,14 +304,14 @@ object Typechecking:
       case DDef("main", _, b) =>
         val cty = globals("main")
         val ctm = check(b, cty)(Nil)
-        Some(C.DDef("main", cty, ctm))
+        Some(C.DDef("main", Set.empty, cty, ctm))
       case DDef(x, _, b) =>
         implicit val ctx: Ctx = Nil
         val cty = globals(x)
         val ctm = check(b, cty)
         val cty1 = gen(cty)
         globals += x -> cty1
-        Some(C.DDef(x, cty1, ctm))
+        Some(C.DDef(x, Set.empty, cty1, ctm))
 
   def typecheck(d: Defs): C.Defs =
     globals.clear()
@@ -340,18 +350,20 @@ object Typechecking:
         })
         Some(C.DData(x, cs1))
     }
-    val cds = datadefs ++ d.flatMap(typecheck).map {
-      case C.DDef(x, t, b) =>
-        C.DDef(x, zonk(t), zonk(b))
+    val cds = datadefs.map {
       case C.DData(x, cs) => C.DData(x, cs.map((x, t) => (x, t.map(zonk))))
-    }
+      case d              => d
+    } ++ calcDefRefs(d.flatMap(typecheck).map {
+      case C.DDef(x, refs, t, b) => C.DDef(x, refs, zonk(t), zonk(b))
+      case d                     => d
+    })
     val utms = unsolvedTMetas
     if utms.nonEmpty then
       throw new Exception(
         s"unsolved type metas: ${utms.map(id => s"?$id").mkString(", ")}\n" ++
           s"${cds
               .map {
-                case C.DDef(x, t, _) => s"$x : $t";
+                case C.DDef(x, _, t, _) => s"$x : $t";
                 case C.DData(x, cs) =>
                   s"data $x | ${cs.map((y, as) => s"$y ${as.mkString(" ")}").mkString(" | ")}"
               }
@@ -359,3 +371,20 @@ object Typechecking:
       )
     // println(cds)
     cds
+
+  private def calcDefRefs(d: C.Defs): C.Defs =
+    val gs0 = d.flatMap {
+      case C.DDef(x, _, _, e) => Some(x -> e.globals)
+      case _                  => None
+    }.toMap
+    val gs1 = gs0
+      .map((x, rs) =>
+        x -> (rs ++ rs.toList
+          .map(y => gs0(y))
+          .foldRight[Set[Name]](Set.empty)((s, x) => s ++ x))
+      )
+      .toMap
+    d.map {
+      case C.DDef(x, _, t, v) => C.DDef(x, gs1(x), t, v)
+      case d                  => d
+    }
