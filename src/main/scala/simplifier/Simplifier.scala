@@ -2,6 +2,7 @@ package simplifier
 
 import core.Syntax.*
 import Util.*
+import CaseCommutation.*
 import BetaReduction.*
 import DeadCodeElimination.*
 import Inlining.*
@@ -19,6 +20,7 @@ object Simplifier:
       val (ds1, changed) = pipeline(
         ds,
         List(
+          ("commute", commute),
           ("betaReduce", betaReduce),
           ("eliminateDeadCode", eliminateDeadCode),
           ("inline", doInline)
